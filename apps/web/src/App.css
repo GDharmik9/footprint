@@ -1,0 +1,677 @@
+.app-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 16px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--text-main) 30%, var(--accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.user-status-widget {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.leaves-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: hsla(45, 100%, 50%, 0.1);
+  border: 1px solid var(--leaves-xp);
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--leaves-xp);
+  box-shadow: 0 0 10px var(--leaves-glow);
+}
+
+.level-badge {
+  background: var(--primary-glow);
+  border: 1px solid var(--primary);
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* Onboarding view styling */
+.onboarding-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  text-align: center;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.onboarding-title {
+  font-size: 40px;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, var(--text-main) 40%, var(--primary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.onboarding-subtitle {
+  color: var(--text-muted);
+  font-size: 16px;
+  margin-bottom: 40px;
+}
+
+.onboarding-card {
+  width: 100%;
+  padding: 32px;
+  margin-bottom: 24px;
+}
+
+.archetype-section {
+  margin-bottom: 28px;
+  text-align: left;
+}
+
+.archetype-section h3 {
+  font-size: 16px;
+  margin-bottom: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.grid-selector {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.selector-option {
+  background: hsla(224, 45%, 6%, 0.5);
+  border: 1px solid var(--border-color);
+  padding: 20px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.selector-option:hover {
+  border-color: var(--primary);
+  background: hsla(142, 70%, 45%, 0.05);
+}
+
+.selector-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-glow);
+  box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.selector-option .icon {
+  font-size: 24px;
+}
+
+.option-label {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.option-desc {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 28px;
+  width: 100%;
+}
+
+.input-group label {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-muted);
+}
+
+.input-field {
+  width: 100%;
+  background: hsla(224, 45%, 6%, 0.8);
+  border: 1px solid var(--border-color);
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: var(--text-main);
+  font-size: 16px;
+  transition: border-color 0.2s ease;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--success) 100%);
+  color: white;
+  border: none;
+  padding: 14px 32px;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 9999px;
+  cursor: pointer;
+  font-family: var(--font-display);
+  box-shadow: 0 4px 15px rgba(142, 70, 45, 0.3);
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(142, 70, 45, 0.4);
+}
+
+/* Dashboard main container */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.left-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.panel-card {
+  padding: 24px;
+}
+
+.panel-title {
+  font-size: 20px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Carbon trajectory metric */
+.trajectory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 12px;
+}
+
+.trajectory-value {
+  font-family: var(--font-display);
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.trajectory-value span {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.target-info {
+  font-size: 14px;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.trajectory-progress-container {
+  margin-bottom: 24px;
+}
+
+.trajectory-sub-bar {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* Interactive Simulator */
+.simulator-group {
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 20px;
+  margin-bottom: 20px;
+}
+
+.simulator-group:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.simulator-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.simulator-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.simulator-impact {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.simulator-options-row {
+  display: flex;
+  gap: 12px;
+}
+
+.simulator-option-btn {
+  flex: 1;
+  background: hsla(224, 45%, 6%, 0.4);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.simulator-option-btn:hover {
+  border-color: var(--primary);
+  color: var(--text-main);
+}
+
+.simulator-option-btn.active {
+  background: var(--primary-glow);
+  border-color: var(--primary);
+  color: var(--text-main);
+  box-shadow: 0 0 10px var(--primary-glow);
+}
+
+.projected-reduction-banner {
+  background: linear-gradient(135deg, hsla(142, 70%, 45%, 0.1) 0%, hsla(150, 90%, 60%, 0.05) 100%);
+  border: 1px solid var(--primary);
+  padding: 16px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+}
+
+.reduction-label {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.reduction-value {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--accent);
+  text-shadow: 0 0 10px var(--accent-glow);
+}
+
+/* Eco-Sphere Container */
+.ecosphere-widget {
+  height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(circle at center, hsla(150, 90%, 60%, 0.05) 0%, transparent 70%);
+}
+
+.ecosphere-svg {
+  width: 200px;
+  height: 200px;
+  filter: drop-shadow(0 0 15px var(--accent-glow));
+}
+
+.ecosphere-label {
+  position: absolute;
+  bottom: 16px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+/* Log carbon manual widget */
+.log-event-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-secondary:hover {
+  background: hsla(224, 45%, 15%, 0.6);
+  border-color: var(--border-color-hover);
+}
+
+/* Challenges Hub styling */
+.challenge-card {
+  background: hsla(224, 45%, 6%, 0.4);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.challenge-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.challenge-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.challenge-reward {
+  font-size: 12px;
+  background: hsla(45, 100%, 50%, 0.1);
+  border: 1px solid var(--leaves-xp);
+  padding: 2px 8px;
+  border-radius: 9999px;
+  color: var(--leaves-xp);
+  font-weight: 600;
+}
+
+.challenge-desc {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 16px;
+}
+
+.challenge-days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.day-checkbox-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.day-label {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.day-checkbox {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+  background: hsla(224, 45%, 6%, 0.8);
+}
+
+.day-checkbox:hover {
+  border-color: var(--primary);
+}
+
+.day-checkbox.completed {
+  background: var(--primary-glow);
+  border-color: var(--primary);
+  color: var(--accent);
+  box-shadow: 0 0 8px var(--primary-glow);
+}
+
+.challenge-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.streak-counter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--warning);
+  font-weight: 600;
+}
+
+/* Sponsor Placements */
+.sponsor-banner {
+  background: linear-gradient(135deg, hsla(200, 80%, 40%, 0.15) 0%, hsla(200, 80%, 50%, 0.05) 100%);
+  border: 1px solid hsl(200, 80%, 40%);
+  padding: 16px;
+  border-radius: 12px;
+  margin-top: 16px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.sponsor-banner.oatly {
+  background: linear-gradient(135deg, hsla(34, 40%, 20%, 0.2) 0%, hsla(34, 40%, 15%, 0.05) 100%);
+  border: 1px solid hsl(34, 30%, 45%);
+}
+
+.sponsor-logo {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  padding: 6px 12px;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.sponsor-logo.arcadia {
+  background: hsl(200, 80%, 40%);
+  color: white;
+}
+
+.sponsor-logo.oatly {
+  background: hsl(34, 25%, 35%);
+  color: #fff8e7;
+}
+
+.sponsor-info {
+  flex: 1;
+}
+
+.sponsor-title {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: var(--text-main);
+}
+
+.sponsor-text {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.sponsor-btn {
+  background: var(--text-main);
+  color: var(--bg-dark);
+  border: none;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.sponsor-btn:hover {
+  transform: translateY(-1px);
+  background: var(--accent);
+}
+
+/* Vouchers section */
+.vouchers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.voucher-item {
+  background: hsla(224, 45%, 6%, 0.5);
+  border: 1px solid var(--border-color);
+  padding: 14px;
+  border-radius: 8px;
+}
+
+.voucher-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.voucher-title {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.voucher-code {
+  font-family: monospace;
+  background: hsla(224, 45%, 15%, 0.8);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  border: 1px dashed var(--border-color);
+  color: var(--accent);
+}
+
+.voucher-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Barcode illustration */
+.barcode-visual {
+  height: 24px;
+  background: repeating-linear-gradient(
+    90deg,
+    #ffffff,
+    #ffffff 2px,
+    #000000 2px,
+    #000000 4px,
+    #ffffff 4px,
+    #ffffff 5px,
+    #000000 5px,
+    #000000 8px
+  );
+  border-radius: 2px;
+  margin-top: 8px;
+}
+
+/* Visual SVG Chart */
+.chart-container {
+  height: 200px;
+  width: 100%;
+  position: relative;
+  margin-top: 16px;
+}
+
+.chart-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.chart-tooltip {
+  position: absolute;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
