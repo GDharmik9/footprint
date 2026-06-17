@@ -6,9 +6,9 @@ Use this checklist to track tasks and feature backlogs.
 
 ## ⚡ High Priority (Next Actions)
 
-- [ ] Write integration test suites for `@footprint/carbon-math`.
-- [ ] Connect the Express backend to a local dockerized PostgreSQL instance.
-- [ ] Implement user session authentication (JWT).
+- [x] Write unit test suites for `@footprint/carbon-math`.
+- [x] Connect the Express backend to a local dockerized PostgreSQL instance.
+- [x] Implement user session authentication (JWT).
 - [ ] Set up continuous integration workflows via GitHub Actions.
 
 ## 🛠️ Enhancements & Technical Debt

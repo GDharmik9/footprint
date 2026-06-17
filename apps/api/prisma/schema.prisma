@@ -1,0 +1,81 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String        @id
+  displayName  String        @map("display_name")
+  currentLevel Int           @default(1) @map("current_level")
+  totalLeaves  Int           @default(0) @map("total_leaves")
+  postalCode   String?       @map("postal_code")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  carbonEvents CarbonEvent[]
+  challenges   Challenge[]
+  vouchers     Voucher[]
+
+  @@map("users")
+}
+
+model CarbonEvent {
+  id              String   @id
+  userId          String   @map("user_id")
+  category        String
+  sourceProvider  String   @map("source_provider")
+  rawValue        Float    @map("raw_value")
+  rawUnit         String   @map("raw_unit")
+  computedCo2eKg  Float    @map("computed_co2e_kg")
+  regionCode      String?  @map("region_code")
+  timestamp       DateTime
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("carbon_events")
+}
+
+model Challenge {
+  id            String   @id
+  userId        String   @map("user_id")
+  type          String
+  title         String
+  description   String
+  rewardLeaves  Int      @map("reward_leaves")
+  targetDays    Int      @map("target_days")
+  currentStreak Int      @default(0) @map("current_streak")
+  completed     Int      @default(0)
+  progressLogs  String   @map("progress_logs")
+  rewardApplied Int      @default(0) @map("reward_applied")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("challenges")
+}
+
+model Voucher {
+  id          String   @id
+  userId      String   @map("user_id")
+  sponsorName String   @map("sponsor_name")
+  title       String
+  description String
+  rewardType  String   @map("reward_type")
+  couponCode  String?  @map("coupon_code")
+  costLeaves  Int      @map("cost_leaves")
+  redeemedAt  DateTime @default(now()) @map("redeemed_at")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("vouchers")
+}
+
+model League {
+  id       String  @id
+  userId   String? @map("user_id")
+  username String
+  leaves   Int     @default(0)
+  level    Int     @default(1)
+  isMock   Int     @default(1) @map("is_mock")
+
+  @@map("leagues")
+}

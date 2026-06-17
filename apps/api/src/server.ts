@@ -1,11 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import { 
   initDatabase, 
-  query, 
-  queryOne, 
-  run, 
+  prisma,
   seedUserChallenges,
   seedWeeklyLeague
 } from './database.js';
@@ -25,6 +24,11 @@ import {
   Challenge, 
   Voucher 
 } from '@footprint/shared-types';
+import { 
+  authenticateToken, 
+  AuthenticatedRequest, 
+  JWT_SECRET 
+} from './auth.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -39,11 +43,6 @@ initDatabase().catch(err => {
 
 // Helper: Calculate user level from leaves
 function calculateLevel(leaves: number): number {
-  // Level 1: 0 - 99 leaves
-  // Level 2: 100 - 249 leaves
-  // Level 3: 250 - 499 leaves
-  // Level 4: 500 - 999 leaves
-  // Level 5+: 1000+ leaves
   if (leaves < 100) return 1;
   if (leaves < 250) return 2;
   if (leaves < 500) return 3;
@@ -51,7 +50,7 @@ function calculateLevel(leaves: number): number {
   return 5 + Math.floor((leaves - 1000) / 1000);
 }
 
-// 1. POST /api/users - Onboarding Archetype Selection
+// 1. POST /api/users - Onboarding Archetype Selection (Open endpoint)
 app.post('/api/users', async (req, res) => {
   try {
     const { display_name, postal_code, archetype } = req.body;
@@ -68,10 +67,15 @@ app.post('/api/users', async (req, res) => {
     });
 
     // Save user
-    await run(`
-      INSERT INTO users (id, display_name, current_level, total_leaves, postal_code)
-      VALUES (?, ?, ?, ?, ?)
-    `, [userId, display_name, 1, 0, postal_code || '']);
+    await prisma.user.create({
+      data: {
+        id: userId,
+        displayName: display_name,
+        currentLevel: 1,
+        totalLeaves: 0,
+        postalCode: postal_code || ''
+      }
+    });
 
     // Seed challenges
     await seedUserChallenges(userId);
@@ -81,76 +85,143 @@ app.post('/api/users', async (req, res) => {
 
     // Seed historical baseline events for the last 6 months (to display rich charts)
     const now = new Date();
+    const eventDataList = [];
     for (let i = 5; i >= 0; i--) {
       const eventDate = new Date(now.getFullYear(), now.getMonth() - i, 15);
-      const timestamp = eventDate.toISOString();
+      const timestamp = eventDate;
 
       // Seed housing event (monthly)
       const housingKWh = archetype?.housing === 'apartment' ? 300 : archetype?.housing === 'family' ? 1000 : 6000/12;
       const housingCO2 = computeHousingCO2(housingKWh, 'standard');
-      await run(`
-        INSERT INTO carbon_events (id, user_id, category, source_provider, raw_value, raw_unit, computed_co2e_kg, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, [crypto.randomUUID(), userId, 'housing', 'manual', housingKWh, 'kWh', housingCO2, timestamp]);
+      eventDataList.push({
+        id: crypto.randomUUID(),
+        userId,
+        category: 'housing',
+        sourceProvider: 'manual',
+        rawValue: housingKWh,
+        rawUnit: 'kWh',
+        computedCo2eKg: housingCO2,
+        timestamp
+      });
 
       // Seed transport event (monthly)
       const transportMiles = archetype?.commute === 'transit' ? 100 : archetype?.commute === 'gas' ? 1200 : 600;
       const transportMode = archetype?.commute === 'transit' ? 'transit' : archetype?.commute === 'gas' ? 'suv' : 'hybrid';
       const transportCO2 = computeTransportCO2(transportMiles, transportMode as any);
-      await run(`
-        INSERT INTO carbon_events (id, user_id, category, source_provider, raw_value, raw_unit, computed_co2e_kg, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, [crypto.randomUUID(), userId, 'transport', 'manual', transportMiles, 'miles', transportCO2, timestamp]);
+      eventDataList.push({
+        id: crypto.randomUUID(),
+        userId,
+        category: 'transport',
+        sourceProvider: 'manual',
+        rawValue: transportMiles,
+        rawUnit: 'miles',
+        computedCo2eKg: transportCO2,
+        timestamp
+      });
 
       // Seed food event (monthly)
       const foodMeals = 90; // ~3 meals a day
       const foodDiet = archetype?.diet || 'balanced';
       const foodCO2 = computeFoodCO2(foodMeals, foodDiet);
-      await run(`
-        INSERT INTO carbon_events (id, user_id, category, source_provider, raw_value, raw_unit, computed_co2e_kg, timestamp)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `, [crypto.randomUUID(), userId, 'food', 'manual', foodMeals, 'meals', foodCO2, timestamp]);
+      eventDataList.push({
+        id: crypto.randomUUID(),
+        userId,
+        category: 'food',
+        sourceProvider: 'manual',
+        rawValue: foodMeals,
+        rawUnit: 'meals',
+        computedCo2eKg: foodCO2,
+        timestamp
+      });
     }
 
-    const createdUser = await queryOne<User>('SELECT * FROM users WHERE id = ?', [userId]);
-    res.status(201).json({ user: createdUser, baseline });
+    await prisma.carbonEvent.createMany({
+      data: eventDataList
+    });
+
+    const createdUser = await prisma.user.findUnique({ where: { id: userId } });
+    if (createdUser) {
+      // Sign JWT token
+      const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
+
+      res.status(201).json({
+        user: {
+          id: createdUser.id,
+          display_name: createdUser.displayName,
+          current_level: createdUser.currentLevel,
+          total_leaves: createdUser.totalLeaves,
+          postal_code: createdUser.postalCode,
+          created_at: createdUser.createdAt.toISOString()
+        },
+        token,
+        baseline
+      });
+    } else {
+      res.status(500).json({ error: 'Failed to retrieve created user' });
+    }
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 2. GET /api/users/:id - Fetch user details
-app.get('/api/users/:id', async (req, res) => {
+// 2. GET /api/users/:id - Fetch user details (Secured)
+app.get('/api/users/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const user = await queryOne<User>('SELECT * FROM users WHERE id = ?', [req.params.id]);
+    if (req.userId !== req.params.id) {
+      res.status(403).json({ error: 'Access denied: User mismatch' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.params.id } });
     if (!user) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
-    res.json(user);
+    res.json({
+      id: user.id,
+      display_name: user.displayName,
+      current_level: user.currentLevel,
+      total_leaves: user.totalLeaves,
+      postal_code: user.postalCode,
+      created_at: user.createdAt.toISOString()
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 3. GET /api/carbon-events/:userId - Retrieve carbon footprint logs
-app.get('/api/carbon-events/:userId', async (req, res) => {
+// 3. GET /api/carbon-events/:userId - Retrieve carbon footprint logs (Secured)
+app.get('/api/carbon-events/:userId', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const events = await query<CarbonEvent>(
-      'SELECT * FROM carbon_events WHERE user_id = ? ORDER BY timestamp DESC',
-      [req.params.userId]
-    );
-    res.json(events);
+    if (req.userId !== req.params.userId) {
+      res.status(403).json({ error: 'Access denied: User mismatch' });
+      return;
+    }
+
+    const events = await prisma.carbonEvent.findMany({
+      where: { userId: req.params.userId },
+      orderBy: { timestamp: 'desc' }
+    });
+    res.json(events.map(e => ({
+      id: e.id,
+      user_id: e.userId,
+      category: e.category,
+      source_provider: e.sourceProvider,
+      raw_value: e.rawValue,
+      raw_unit: e.rawUnit,
+      computed_co2e_kg: e.computedCo2eKg,
+      region_code: e.regionCode,
+      timestamp: e.timestamp.toISOString()
+    })));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 4. POST /api/carbon-events - Log carbon tracking event (Manual or integrations)
-app.post('/api/carbon-events', async (req, res) => {
+// 4. POST /api/carbon-events - Log carbon tracking event (Secured)
+app.post('/api/carbon-events', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
     const { 
-      userId, 
       category, 
       source_provider, 
       raw_value, 
@@ -161,7 +232,9 @@ app.post('/api/carbon-events', async (req, res) => {
       housingOption
     } = req.body;
 
-    if (!userId || !category || !raw_value || !raw_unit) {
+    const userId = req.userId!;
+
+    if (!category || !raw_value || !raw_unit) {
       res.status(400).json({ error: 'Missing required carbon event fields' });
       return;
     }
@@ -205,12 +278,15 @@ app.post('/api/carbon-events', async (req, res) => {
       leavesAwarded += 20; // 35 leaves total
     }
 
-    const user = await queryOne<User>('SELECT * FROM users WHERE id = ?', [userId]);
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     const updatedUser = user 
       ? {
-          ...user,
-          total_leaves: user.total_leaves + leavesAwarded,
-          current_level: calculateLevel(user.total_leaves + leavesAwarded)
+          id: user.id,
+          display_name: user.displayName,
+          total_leaves: user.totalLeaves + leavesAwarded,
+          current_level: calculateLevel(user.totalLeaves + leavesAwarded),
+          postal_code: user.postalCode,
+          created_at: user.createdAt.toISOString()
         }
       : null;
 
@@ -232,26 +308,31 @@ app.post('/api/carbon-events', async (req, res) => {
   }
 });
 
-// 5. GET /api/challenges/:userId - Fetch active challenges
-app.get('/api/challenges/:userId', async (req, res) => {
+// 5. GET /api/challenges/:userId - Fetch active challenges (Secured)
+app.get('/api/challenges/:userId', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
+    if (req.userId !== req.params.userId) {
+      res.status(403).json({ error: 'Access denied: User mismatch' });
+      return;
+    }
+
     // Ensure seeded
     await seedUserChallenges(req.params.userId);
 
-    const rows = await query<any>('SELECT * FROM challenges WHERE user_id = ?', [req.params.userId]);
+    const rows = await prisma.challenge.findMany({ where: { userId: req.params.userId } });
     const challenges: Challenge[] = rows.map(r => ({
       id: r.id,
-      userId: r.user_id,
-      type: r.type,
+      userId: r.userId,
+      type: r.type as any,
       title: r.title,
       description: r.description,
-      rewardLeaves: r.reward_leaves,
-      targetDays: r.target_days,
-      currentStreak: r.current_streak,
+      rewardLeaves: r.rewardLeaves,
+      targetDays: r.targetDays,
+      currentStreak: r.currentStreak,
       completed: r.completed === 1,
-      progressLogs: JSON.parse(r.progress_logs),
-      rewardApplied: r.reward_applied === 1,
-      updatedAt: r.updated_at
+      progressLogs: JSON.parse(r.progressLogs),
+      rewardApplied: r.rewardApplied === 1,
+      updatedAt: r.updatedAt.toISOString()
     }));
 
     res.json(challenges);
@@ -260,22 +341,24 @@ app.get('/api/challenges/:userId', async (req, res) => {
   }
 });
 
-// 6. POST /api/challenges/progress - Log daily progress for a 7-day streak challenge
-app.post('/api/challenges/progress', async (req, res) => {
+// 6. POST /api/challenges/progress - Log daily progress for a 7-day streak challenge (Secured)
+app.post('/api/challenges/progress', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { userId, challengeType, dayIndex, completed } = req.body;
-    if (!userId || !challengeType || dayIndex === undefined) {
+    const { challengeType, dayIndex, completed } = req.body;
+    const userId = req.userId!;
+
+    if (!challengeType || dayIndex === undefined) {
       res.status(400).json({ error: 'Missing parameters' });
       return;
     }
 
-    const r = await queryOne<any>('SELECT * FROM challenges WHERE user_id = ? AND type = ?', [userId, challengeType]);
+    const r = await prisma.challenge.findFirst({ where: { userId, type: challengeType } });
     if (!r) {
       res.status(404).json({ error: 'Challenge not found' });
       return;
     }
 
-    const progressLogs = JSON.parse(r.progress_logs);
+    const progressLogs = JSON.parse(r.progressLogs);
     progressLogs[dayIndex] = completed;
 
     // Calculate Streak (consecutive true days from index 0)
@@ -290,49 +373,65 @@ app.post('/api/challenges/progress', async (req, res) => {
     let rewardAwarded = false;
     let leavesAwarded = 0;
 
-    if (isCompleted && r.reward_applied === 0) {
+    if (isCompleted && r.rewardApplied === 0) {
       rewardAwarded = true;
-      leavesAwarded = r.reward_leaves;
+      leavesAwarded = r.rewardLeaves;
       
-      const user = await queryOne<User>('SELECT * FROM users WHERE id = ?', [userId]);
+      const user = await prisma.user.findUnique({ where: { id: userId } });
       if (user) {
-        const newLeaves = user.total_leaves + leavesAwarded;
+        const newLeaves = user.totalLeaves + leavesAwarded;
         const newLevel = calculateLevel(newLeaves);
-        await run('UPDATE users SET total_leaves = ?, current_level = ? WHERE id = ?', [newLeaves, newLevel, userId]);
-        await run('UPDATE leagues SET leaves = ?, level = ? WHERE user_id = ?', [newLeaves, newLevel, userId]);
+        await prisma.user.update({
+          where: { id: userId },
+          data: { totalLeaves: newLeaves, currentLevel: newLevel }
+        });
+        await prisma.league.updateMany({
+          where: { userId },
+          data: { leaves: newLeaves, level: newLevel }
+        });
       }
     }
 
-    await run(`
-      UPDATE challenges
-      SET progress_logs = ?, current_streak = ?, completed = ?, reward_applied = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE user_id = ? AND type = ?
-    `, [
-      JSON.stringify(progressLogs),
-      currentStreak,
-      isCompleted ? 1 : 0,
-      (isCompleted || r.reward_applied === 1) ? 1 : 0,
-      userId,
-      challengeType
-    ]);
+    await prisma.challenge.update({
+      where: { id: r.id },
+      data: {
+        progressLogs: JSON.stringify(progressLogs),
+        currentStreak,
+        completed: isCompleted ? 1 : 0,
+        rewardApplied: (isCompleted || r.rewardApplied === 1) ? 1 : 0
+      }
+    });
 
-    const updatedRow = await queryOne<any>('SELECT * FROM challenges WHERE user_id = ? AND type = ?', [userId, challengeType]);
+    const updatedRow = await prisma.challenge.findUnique({ where: { id: r.id } });
+    if (!updatedRow) {
+      res.status(500).json({ error: 'Failed to retrieve updated challenge' });
+      return;
+    }
+
     const updatedChallenge: Challenge = {
       id: updatedRow.id,
-      userId: updatedRow.user_id,
-      type: updatedRow.type,
+      userId: updatedRow.userId,
+      type: updatedRow.type as any,
       title: updatedRow.title,
       description: updatedRow.description,
-      rewardLeaves: updatedRow.reward_leaves,
-      targetDays: updatedRow.target_days,
-      currentStreak: updatedRow.current_streak,
+      rewardLeaves: updatedRow.rewardLeaves,
+      targetDays: updatedRow.targetDays,
+      currentStreak: updatedRow.currentStreak,
       completed: updatedRow.completed === 1,
-      progressLogs: JSON.parse(updatedRow.progress_logs),
-      rewardApplied: updatedRow.reward_applied === 1,
-      updatedAt: updatedRow.updated_at
+      progressLogs: JSON.parse(updatedRow.progressLogs),
+      rewardApplied: updatedRow.rewardApplied === 1,
+      updatedAt: updatedRow.updatedAt.toISOString()
     };
 
-    const updatedUser = await queryOne<User>('SELECT * FROM users WHERE id = ?', [userId]);
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const updatedUser = user ? {
+      id: user.id,
+      display_name: user.displayName,
+      total_leaves: user.totalLeaves,
+      current_level: user.currentLevel,
+      postal_code: user.postalCode,
+      created_at: user.createdAt.toISOString()
+    } : null;
 
     res.json({
       challenge: updatedChallenge,
@@ -345,30 +444,35 @@ app.post('/api/challenges/progress', async (req, res) => {
   }
 });
 
-// 7. POST /api/sponsors/redeem - Spend leaves to redeem real B-Corp reward
-app.post('/api/sponsors/redeem', async (req, res) => {
+// 7. POST /api/sponsors/redeem - Spend leaves to redeem real B-Corp reward (Secured)
+app.post('/api/sponsors/redeem', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const { userId, sponsorName, rewardType, costLeaves } = req.body;
-    if (!userId || !sponsorName || !rewardType || !costLeaves) {
+    const { sponsorName, rewardType, costLeaves } = req.body;
+    const userId = req.userId!;
+
+    if (!sponsorName || !rewardType || !costLeaves) {
       res.status(400).json({ error: 'Missing parameters' });
       return;
     }
 
-    const user = await queryOne<User>('SELECT * FROM users WHERE id = ?', [userId]);
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
 
-    if (user.total_leaves < costLeaves) {
+    if (user.totalLeaves < costLeaves) {
       res.status(400).json({ error: 'Insufficient Leaves points' });
       return;
     }
 
     // Deduct leaves
-    const newLeaves = user.total_leaves - costLeaves;
+    const newLeaves = user.totalLeaves - costLeaves;
     const newLevel = calculateLevel(newLeaves);
-    await run('UPDATE users SET total_leaves = ?, current_level = ? WHERE id = ?', [newLeaves, newLevel, userId]);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { totalLeaves: newLeaves, currentLevel: newLevel }
+    });
 
     // Create Voucher
     const voucherId = crypto.randomUUID();
@@ -392,44 +496,96 @@ app.post('/api/sponsors/redeem', async (req, res) => {
       description = `A complimentary Smart Energy plug delivered to your doorstep.`;
     }
 
-    await run(`
-      INSERT INTO vouchers (id, user_id, sponsor_name, title, description, reward_type, coupon_code, cost_leaves)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `, [voucherId, userId, sponsorName, title, description, rewardType, couponCode || null, costLeaves]);
+    await prisma.voucher.create({
+      data: {
+        id: voucherId,
+        userId,
+        sponsorName,
+        title,
+        description,
+        rewardType,
+        couponCode: couponCode || null,
+        costLeaves
+      }
+    });
 
-    const createdVoucher = await queryOne<Voucher>('SELECT * FROM vouchers WHERE id = ?', [voucherId]);
-    const updatedUser = await queryOne<User>('SELECT * FROM users WHERE id = ?', [userId]);
+    const createdVoucher = await prisma.voucher.findUnique({ where: { id: voucherId } });
+    const userUpdated = await prisma.user.findUnique({ where: { id: userId } });
 
-    res.status(201).json({ voucher: createdVoucher, user: updatedUser });
+    res.status(201).json({
+      voucher: createdVoucher ? {
+        id: createdVoucher.id,
+        userId: createdVoucher.userId,
+        sponsorName: createdVoucher.sponsorName,
+        title: createdVoucher.title,
+        description: createdVoucher.description,
+        rewardType: createdVoucher.rewardType,
+        couponCode: createdVoucher.couponCode,
+        costLeaves: createdVoucher.costLeaves,
+        redeemedAt: createdVoucher.redeemedAt.toISOString()
+      } : null,
+      user: userUpdated ? {
+        id: userUpdated.id,
+        display_name: userUpdated.displayName,
+        total_leaves: userUpdated.totalLeaves,
+        current_level: userUpdated.currentLevel,
+        postal_code: userUpdated.postalCode,
+        created_at: userUpdated.createdAt.toISOString()
+      } : null
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// 8. GET /api/vouchers/:userId - Fetch all vouchers for a user
-app.get('/api/vouchers/:userId', async (req, res) => {
+// 8. GET /api/vouchers/:userId - Fetch all vouchers for a user (Secured)
+app.get('/api/vouchers/:userId', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
-    const vouchers = await query<Voucher>('SELECT * FROM vouchers WHERE user_id = ? ORDER BY redeemed_at DESC', [req.params.userId]);
-    res.json(vouchers);
+    if (req.userId !== req.params.userId) {
+      res.status(403).json({ error: 'Access denied: User mismatch' });
+      return;
+    }
+
+    const vouchers = await prisma.voucher.findMany({
+      where: { userId: req.params.userId },
+      orderBy: { redeemedAt: 'desc' }
+    });
+    res.json(vouchers.map(v => ({
+      id: v.id,
+      userId: v.userId,
+      sponsorName: v.sponsorName,
+      title: v.title,
+      description: v.description,
+      rewardType: v.rewardType,
+      couponCode: v.couponCode,
+      costLeaves: v.costLeaves,
+      redeemedAt: v.redeemedAt.toISOString()
+    })));
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
 });
-// 9. GET /api/leagues/:userId - Fetch Eco-Leagues Leaderboard
-app.get('/api/leagues/:userId', async (req, res) => {
+
+// 9. GET /api/leagues/:userId - Fetch Eco-Leagues Leaderboard (Secured)
+app.get('/api/leagues/:userId', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
+    if (req.userId !== req.params.userId) {
+      res.status(403).json({ error: 'Access denied: User mismatch' });
+      return;
+    }
+
     const { userId } = req.params;
     await seedWeeklyLeague(userId);
-    const leaderboard = await query<any>('SELECT * FROM leagues');
+    const leaderboard = await prisma.league.findMany();
     
     // Format response
     const sorted = leaderboard.map(l => ({
       id: l.id,
-      userId: l.user_id,
+      userId: l.userId,
       username: l.username,
       leaves: l.leaves,
       level: l.level,
-      isMock: l.is_mock === 1
+      isMock: l.isMock === 1
     }));
     sorted.sort((a, b) => b.leaves - a.leaves);
     
@@ -439,7 +595,7 @@ app.get('/api/leagues/:userId', async (req, res) => {
   }
 });
 
-// 10. POST /api/webhooks/radar - Ingest trip summaries from Radar.io SDK
+// 10. POST /api/webhooks/radar - Ingest trip summaries from Radar.io SDK (Open/Mock endpoint)
 app.post('/api/webhooks/radar', async (req, res) => {
   try {
     let userId = req.body.userId;
@@ -484,7 +640,7 @@ app.post('/api/webhooks/radar', async (req, res) => {
   }
 });
 
-// 11. POST /api/webhooks/arcadia - Ingest monthly energy billing files
+// 11. POST /api/webhooks/arcadia - Ingest monthly energy billing files (Open/Mock endpoint)
 app.post('/api/webhooks/arcadia', async (req, res) => {
   try {
     const { userId, kwh } = req.body;
@@ -513,7 +669,7 @@ app.post('/api/webhooks/arcadia', async (req, res) => {
   }
 });
 
-// 12. POST /api/webhooks/nest - Smart Home thermostat check
+// 12. POST /api/webhooks/nest - Smart Home thermostat check (Open/Mock endpoint)
 app.post('/api/webhooks/nest', async (req, res) => {
   try {
     const { userId, hvacMode, ecoModeActive } = req.body;
@@ -523,15 +679,32 @@ app.post('/api/webhooks/nest', async (req, res) => {
     }
 
     const leavesAwarded = ecoModeActive ? 25 : 5;
-    const user = await queryOne<User>('SELECT * FROM users WHERE id = ?', [userId]);
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     let updatedUser = null;
     
     if (user) {
-      const newLeaves = user.total_leaves + leavesAwarded;
+      const newLeaves = user.totalLeaves + leavesAwarded;
       const newLevel = calculateLevel(newLeaves);
-      await run('UPDATE users SET total_leaves = ?, current_level = ? WHERE id = ?', [newLeaves, newLevel, userId]);
-      await run('UPDATE leagues SET leaves = ?, level = ? WHERE user_id = ?', [newLeaves, newLevel, userId]);
-      updatedUser = await queryOne<User>('SELECT * FROM users WHERE id = ?', [userId]);
+      await prisma.user.update({
+        where: { id: userId },
+        data: { totalLeaves: newLeaves, currentLevel: newLevel }
+      });
+      await prisma.league.updateMany({
+        where: { userId },
+        data: { leaves: newLeaves, level: newLevel }
+      });
+      
+      const userUpdated = await prisma.user.findUnique({ where: { id: userId } });
+      if (userUpdated) {
+        updatedUser = {
+          id: userUpdated.id,
+          display_name: userUpdated.displayName,
+          total_leaves: userUpdated.totalLeaves,
+          current_level: userUpdated.currentLevel,
+          postal_code: userUpdated.postalCode,
+          created_at: userUpdated.createdAt.toISOString()
+        };
+      }
     }
 
     res.json({
@@ -577,10 +750,19 @@ startPubSubSubscriber(async (payload: any) => {
   }
 
   // Insert carbon event into database
-  await run(`
-    INSERT INTO carbon_events (id, user_id, category, source_provider, raw_value, raw_unit, computed_co2e_kg, region_code, timestamp)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [eventId, userId, category, source_provider || 'manual', raw_value, raw_unit, computedCO2, region_code || 'default', timestamp]);
+  await prisma.carbonEvent.create({
+    data: {
+      id: eventId,
+      userId,
+      category,
+      sourceProvider: source_provider || 'manual',
+      rawValue: raw_value,
+      rawUnit: raw_unit,
+      computedCo2eKg: computedCO2,
+      regionCode: region_code || 'default',
+      timestamp: new Date(timestamp)
+    }
+  });
 
   // Award leaves
   let leavesAwarded = 15;
@@ -592,12 +774,18 @@ startPubSubSubscriber(async (payload: any) => {
     leavesAwarded += 20;
   }
 
-  const user = await queryOne<User>('SELECT * FROM users WHERE id = ?', [userId]);
+  const user = await prisma.user.findUnique({ where: { id: userId } });
   if (user) {
-    const newLeaves = user.total_leaves + leavesAwarded;
+    const newLeaves = user.totalLeaves + leavesAwarded;
     const newLevel = calculateLevel(newLeaves);
-    await run('UPDATE users SET total_leaves = ?, current_level = ? WHERE id = ?', [newLeaves, newLevel, userId]);
-    await run('UPDATE leagues SET leaves = ?, level = ? WHERE user_id = ?', [newLeaves, newLevel, userId]);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { totalLeaves: newLeaves, currentLevel: newLevel }
+    });
+    await prisma.league.updateMany({
+      where: { userId },
+      data: { leaves: newLeaves, level: newLevel }
+    });
   }
   
   console.log(`Subscriber processed event successfully: ${eventId}`);

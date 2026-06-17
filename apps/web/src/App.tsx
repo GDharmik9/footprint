@@ -102,37 +102,41 @@ export default function App() {
   // Fetch all user dashboard data
   const fetchUser = async (userId: string) => {
     setLoading(true);
+    const token = localStorage.getItem('footprint_auth_token');
+    const headers = {
+      'Authorization': `Bearer ${token}`
+    };
     try {
       // 1. Fetch User status
-      const userRes = await fetch(`${API_BASE}/users/${userId}`);
+      const userRes = await fetch(`${API_BASE}/users/${userId}`, { headers });
       if (!userRes.ok) throw new Error('User not found on server');
       const userData = await userRes.json();
       setUser(userData);
       localStorage.setItem('footprint_user_id', userId);
 
       // 2. Fetch history
-      const historyRes = await fetch(`${API_BASE}/carbon-events/${userId}`);
+      const historyRes = await fetch(`${API_BASE}/carbon-events/${userId}`, { headers });
       if (historyRes.ok) {
         const historyData = await historyRes.json();
         setEvents(historyData);
       }
 
       // 3. Fetch active challenges
-      const challengesRes = await fetch(`${API_BASE}/challenges/${userId}`);
+      const challengesRes = await fetch(`${API_BASE}/challenges/${userId}`, { headers });
       if (challengesRes.ok) {
         const challengesData = await challengesRes.json();
         setChallenges(challengesData);
       }
 
       // 4. Fetch vouchers
-      const vouchersRes = await fetch(`${API_BASE}/vouchers/${userId}`);
+      const vouchersRes = await fetch(`${API_BASE}/vouchers/${userId}`, { headers });
       if (vouchersRes.ok) {
         const vouchersData = await vouchersRes.json();
         setVouchers(vouchersData);
       }
 
       // 5. Fetch Eco-Leagues leaderboard
-      const leagueRes = await fetch(`${API_BASE}/leagues/${userId}`);
+      const leagueRes = await fetch(`${API_BASE}/leagues/${userId}`, { headers });
       if (leagueRes.ok) {
         const leagueData = await leagueRes.json();
         setLeaderboard(leagueData);
@@ -293,6 +297,7 @@ export default function App() {
       setUser(data.user);
       setBaseline(data.baseline);
       localStorage.setItem('footprint_user_id', data.user.id);
+      localStorage.setItem('footprint_auth_token', data.token);
       localStorage.setItem('footprint_baseline', JSON.stringify(data.baseline));
       triggerToast('Welcome to Footprint! Archetype baseline generated.', 'success');
 
@@ -314,9 +319,13 @@ export default function App() {
     if (!user) return;
 
     try {
+      const token = localStorage.getItem('footprint_auth_token');
       const response = await fetch(`${API_BASE}/carbon-events`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           userId: user.id,
           category: logCategory,
@@ -385,9 +394,13 @@ export default function App() {
     if (!user) return;
 
     try {
+      const token = localStorage.getItem('footprint_auth_token');
       const response = await fetch(`${API_BASE}/challenges/progress`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           userId: user.id,
           challengeType,
@@ -471,9 +484,13 @@ export default function App() {
     }
 
     try {
+      const token = localStorage.getItem('footprint_auth_token');
       const response = await fetch(`${API_BASE}/sponsors/redeem`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           userId: user.id,
           sponsorName,
@@ -534,6 +551,7 @@ export default function App() {
   // Reset current session
   const resetSession = () => {
     localStorage.removeItem('footprint_user_id');
+    localStorage.removeItem('footprint_auth_token');
     localStorage.removeItem('footprint_baseline');
     setUser(null);
     setBaseline(null);
