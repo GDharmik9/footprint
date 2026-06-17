@@ -26,18 +26,23 @@ steps:
       - 'apps/web/Dockerfile'
       - '.'
 
-  # NEW STEP: Push the images immediately so Cloud Run can see them
+  # 3. Explicitly push the API images to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    id: 'push-images'
+    id: 'push-api-image'
     args:
       - 'push'
       - '--all-tags'
       - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api'
+
+  # 4. Explicitly push the Web Dashboard images to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-web-image'
+    args:
       - 'push'
       - '--all-tags'
       - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-web'
 
-  # 3. Deploy the API to Cloud Run
+  # 5. Deploy the API to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'deploy-api'
     entrypoint: 'gcloud'
@@ -54,7 +59,7 @@ steps:
       # Providing the Pub/Sub subscription name we verified earlier
       - '--set-env-vars=PUBSUB_SUBSCRIPTION=carbon-events-topic-sub'
 
-  # 4. Deploy the Web Dashboard to Cloud Run
+  # 6. Deploy the Web Dashboard to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'deploy-web'
     entrypoint: 'gcloud'
@@ -72,10 +77,11 @@ substitutions:
   _AR_LOCATION: 'us-central1'
   _AR_REPOSITORY: 'footprint'
 
+# Direct streaming option to ensure logs are handled without bucket errors
 options:
   logging: CLOUD_LOGGING_ONLY
 
-# Safe keeping for artifacts tracking
+# Safe keeping for artifact tracing after a successful run
 images:
   - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:${COMMIT_SHA}'
   - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:latest'
