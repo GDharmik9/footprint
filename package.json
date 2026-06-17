@@ -7,8 +7,11 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspaces --if-present",
+    "dev": "concurrently \"npm run dev -w @footprint/api\" \"npm run dev -w @footprint/web\"",
     "build": "npm run build --workspaces --if-present",
     "start": "npm run start --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   }
 }

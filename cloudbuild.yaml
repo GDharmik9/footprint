@@ -1,0 +1,39 @@
+# Google Cloud Build pipeline configuration
+steps:
+  # 1. Build the API container image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-api'
+    args: 
+      - 'build'
+      - '-t'
+      - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:${COMMIT_SHA}'
+      - '-t'
+      - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:latest'
+      - '-f'
+      - 'apps/api/Dockerfile'
+      - '.'
+
+  # 2. Build the Web Dashboard container image
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-web'
+    args: 
+      - 'build'
+      - '-t'
+      - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-web:${COMMIT_SHA}'
+      - '-t'
+      - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-web:latest'
+      - '-f'
+      - 'apps/web/Dockerfile'
+      - '.'
+
+# Push images to Artifact Registry
+images:
+  - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:${COMMIT_SHA}'
+  - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:latest'
+  - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-web:${COMMIT_SHA}'
+  - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-web:latest'
+
+# Default values for substitution variables
+substitutions:
+  _AR_LOCATION: 'us-central1'
+  _AR_REPOSITORY: 'footprint'

@@ -61,3 +61,10 @@ export interface IngestCarbonEventPayload {
   region_code?: string;
   timestamp?: string;
 }
+
+export interface GCPConfig {
+  projectId?: string;
+  dbSecretName?: string;
+  pubsubTopicName?: string;
+  pubsubSubscriptionName?: string;
+}

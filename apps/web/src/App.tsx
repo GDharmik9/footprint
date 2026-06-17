@@ -14,7 +14,6 @@ import {
 } from '@footprint/carbon-math';
 import {
   Leaf,
-  Award,
   Activity,
   TrendingDown,
   Home,
@@ -73,6 +72,16 @@ export default function App() {
   // Alert popup state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
 
+  // Eco-Leagues Leaderboard and Tab state
+  const [ecoSphereTab, setEcoSphereTab] = useState<'sphere' | 'league'>('sphere');
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+
+  // Webhook simulator state
+  const [simRadarDistance, setSimRadarDistance] = useState<number>(12);
+  const [simRadarMode, setSimRadarMode] = useState<'suv' | 'gas_car' | 'hybrid' | 'ev' | 'transit'>('gas_car');
+  const [simArcadiaKwh, setSimArcadiaKwh] = useState<number>(250);
+  const [simNestEco, setSimNestEco] = useState<boolean>(true);
+
   // Local Storage load
   useEffect(() => {
     const cachedUserId = localStorage.getItem('footprint_user_id');
@@ -120,6 +129,13 @@ export default function App() {
       if (vouchersRes.ok) {
         const vouchersData = await vouchersRes.json();
         setVouchers(vouchersData);
+      }
+
+      // 5. Fetch Eco-Leagues leaderboard
+      const leagueRes = await fetch(`${API_BASE}/leagues/${userId}`);
+      if (leagueRes.ok) {
+        const leagueData = await leagueRes.json();
+        setLeaderboard(leagueData);
       }
     } catch (e: any) {
       console.warn('Backend server connection failed. Falling back to simulated local state.');
@@ -219,6 +235,33 @@ export default function App() {
         updatedAt: now.toISOString()
       }
     ]);
+
+    // Initial local mock leaderboard setup
+    const mockLeague = [
+      { id: 'user-id', userId, username: displayName || 'Eco Champion', leaves: mockUser.total_leaves, level: mockUser.current_level, isMock: false },
+      ...Array.from({ length: 29 }, (_, idx) => {
+        const names = [
+          'Ivy Green', 'Moss Ranger', 'Fern Forest', 'Pine Seedling', 'Sage Leaf', 
+          'Willow Branch', 'Cedar Sprout', 'Olive Grove', 'Emerald Spark', 'Hazel Nut',
+          'Forest Shade', 'Meadow Grass', 'Clover Patch', 'Bamboo Stem', 'Laurel Wreath',
+          'Birch Bark', 'Maple Syrup', 'Oak Acorn', 'Heather Bloom', 'Lily Pad',
+          'Flora Eco', 'Sprout Master', 'Herb Garden', 'Lichen Rock', 'Sequoia Giant',
+          'Bonsai Caret', 'Lotus Petal', 'Minty Fresh', 'Basil Sweet'
+        ];
+        // seed leaves between 50 and 600
+        const leaves = Math.floor(50 + (idx * 17.5) + Math.random() * 20);
+        return {
+          id: `mock-l-${idx}`,
+          userId: `mock-u-${idx}`,
+          username: names[idx] || `Eco Competitor ${idx}`,
+          leaves,
+          level: calculateLevel(leaves),
+          isMock: true
+        };
+      })
+    ];
+    mockLeague.sort((a, b) => b.leaves - a.leaves);
+    setLeaderboard(mockLeague);
   };
 
   // Submit onboarding form
@@ -321,12 +364,18 @@ export default function App() {
       setEvents([newEvent, ...events]);
 
       const leavesAwarded = 15;
+      const newLeaves = user.total_leaves + leavesAwarded;
+      const newLevel = calculateLevel(newLeaves);
       const updatedUser = {
         ...user,
-        total_leaves: user.total_leaves + leavesAwarded,
-        current_level: calculateLevel(user.total_leaves + leavesAwarded)
+        total_leaves: newLeaves,
+        current_level: newLevel
       };
       setUser(updatedUser);
+      setLeaderboard(prev => {
+        const updated = prev.map(m => m.userId === user.id ? { ...m, leaves: newLeaves, level: newLevel } : m);
+        return [...updated].sort((a, b) => b.leaves - a.leaves);
+      });
       triggerToast(`Local Mode: Logged successfully! Earned +${leavesAwarded} Leaves.`, 'success');
     }
   };
@@ -399,6 +448,12 @@ export default function App() {
         setUser(updatedUser);
 
         if (rewardAwarded) {
+          const newLeaves = updatedUser.total_leaves;
+          const newLevel = updatedUser.current_level;
+          setLeaderboard(prev => {
+            const updated = prev.map(m => m.userId === user.id ? { ...m, leaves: newLeaves, level: newLevel } : m);
+            return [...updated].sort((a, b) => b.leaves - a.leaves);
+          });
           triggerToast(`Local Mode: Challenge Completed! Earned +${leavesAwarded} Leaves! 🏆`, 'success');
         } else {
           triggerToast(`Local Mode: Toggled Day ${dayIndex + 1}.`);
@@ -439,10 +494,12 @@ export default function App() {
       }
     } catch (err) {
       // Offline fallback
+      const newLeaves = user.total_leaves - costLeaves;
+      const newLevel = calculateLevel(newLeaves);
       const updatedUser = {
         ...user,
-        total_leaves: user.total_leaves - costLeaves,
-        current_level: calculateLevel(user.total_leaves - costLeaves)
+        total_leaves: newLeaves,
+        current_level: newLevel
       };
 
       const codeSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -466,6 +523,10 @@ export default function App() {
 
       setVouchers([newVoucher, ...vouchers]);
       setUser(updatedUser);
+      setLeaderboard(prev => {
+        const updated = prev.map(m => m.userId === user.id ? { ...m, leaves: newLeaves, level: newLevel } : m);
+        return [...updated].sort((a, b) => b.leaves - a.leaves);
+      });
       triggerToast(`Local Mode: Redeemed ${costLeaves} Leaves successfully!`, 'success');
     }
   };
@@ -478,6 +539,160 @@ export default function App() {
     setBaseline(null);
     setEvents([]);
     setVouchers([]);
+  };
+
+  // Trigger Radar Webhook
+  const triggerRadarWebhook = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/webhooks/radar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          distanceMiles: simRadarDistance,
+          mode: simRadarMode
+        })
+      });
+      if (response.ok) {
+        triggerToast(`Radar SDK: Trip summary ingestion queued. Processing asynchronously...`, 'success');
+        // Poll or refresh user dashboard after a small delay to allow Pub/Sub subscriber execution
+        setTimeout(() => fetchUser(user.id), 1500);
+      } else {
+        throw new Error('Radar webhook returned non-200');
+      }
+    } catch (err) {
+      // Local fallback simulation
+      const computedCO2 = computeTransportCO2(simRadarDistance, simRadarMode);
+      const newEvent: CarbonEvent = {
+        id: crypto.randomUUID(),
+        user_id: user.id,
+        category: 'transport',
+        source_provider: 'radar_sdk',
+        raw_value: simRadarDistance,
+        raw_unit: 'miles',
+        computed_co2e_kg: computedCO2,
+        timestamp: new Date().toISOString()
+      };
+      setEvents(prev => [newEvent, ...prev]);
+
+      let leavesAwarded = 15;
+      if (simRadarMode === 'ev' || simRadarMode === 'transit') {
+        leavesAwarded += 15;
+      }
+      const newLeaves = user.total_leaves + leavesAwarded;
+      const newLevel = calculateLevel(newLeaves);
+      const updatedUser = {
+        ...user,
+        total_leaves: newLeaves,
+        current_level: newLevel
+      };
+      setUser(updatedUser);
+      setLeaderboard(prev => {
+        const updated = prev.map(m => m.userId === user.id ? { ...m, leaves: newLeaves, level: newLevel } : m);
+        return [...updated].sort((a, b) => b.leaves - a.leaves);
+      });
+      triggerToast(`Local Mode: Simulated Radar.io trip event logged. Earned +${leavesAwarded} Leaves!`, 'success');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Trigger Arcadia Webhook
+  const triggerArcadiaWebhook = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/webhooks/arcadia`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          kwh: simArcadiaKwh
+        })
+      });
+      if (response.ok) {
+        triggerToast(`Arcadia: Billing file ingestion queued. Processing asynchronously...`, 'success');
+        setTimeout(() => fetchUser(user.id), 1500);
+      } else {
+        throw new Error('Arcadia webhook returned non-200');
+      }
+    } catch (err) {
+      // Local fallback simulation
+      const computedCO2 = computeHousingCO2(simArcadiaKwh, 'standard');
+      const newEvent: CarbonEvent = {
+        id: crypto.randomUUID(),
+        user_id: user.id,
+        category: 'housing',
+        source_provider: 'arcadia',
+        raw_value: simArcadiaKwh,
+        raw_unit: 'kWh',
+        computed_co2e_kg: computedCO2,
+        timestamp: new Date().toISOString()
+      };
+      setEvents(prev => [newEvent, ...prev]);
+
+      const leavesAwarded = 15;
+      const newLeaves = user.total_leaves + leavesAwarded;
+      const newLevel = calculateLevel(newLeaves);
+      const updatedUser = {
+        ...user,
+        total_leaves: newLeaves,
+        current_level: newLevel
+      };
+      setUser(updatedUser);
+      setLeaderboard(prev => {
+        const updated = prev.map(m => m.userId === user.id ? { ...m, leaves: newLeaves, level: newLevel } : m);
+        return [...updated].sort((a, b) => b.leaves - a.leaves);
+      });
+      triggerToast(`Local Mode: Simulated Arcadia billing event logged. Earned +${leavesAwarded} Leaves!`, 'success');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Trigger Nest Webhook
+  const triggerNestWebhook = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/webhooks/nest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          hvacMode: 'heat',
+          ecoModeActive: simNestEco
+        })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+        triggerToast(`Nest: Telemetry check successful. Earned +${data.leavesAwarded} Leaves!`, 'success');
+        setTimeout(() => fetchUser(user.id), 500);
+      } else {
+        throw new Error('Nest webhook returned non-200');
+      }
+    } catch (err) {
+      // Local fallback simulation
+      const leavesAwarded = simNestEco ? 25 : 5;
+      const newLeaves = user.total_leaves + leavesAwarded;
+      const newLevel = calculateLevel(newLeaves);
+      const updatedUser = {
+        ...user,
+        total_leaves: newLeaves,
+        current_level: newLevel
+      };
+      setUser(updatedUser);
+      setLeaderboard(prev => {
+        const updated = prev.map(m => m.userId === user.id ? { ...m, leaves: newLeaves, level: newLevel } : m);
+        return [...updated].sort((a, b) => b.leaves - a.leaves);
+      });
+      triggerToast(`Local Mode: Nest thermostat check verified. Nest Eco-Mode active: +${leavesAwarded} Leaves!`, 'success');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Interactive Simulator calculations based on current options
@@ -1023,23 +1238,221 @@ export default function App() {
             )}
           </div>
 
+          {/* Smart Telemetry Simulator Webhooks Card */}
+          <div className="panel-card glass-panel">
+            <h2 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Activity size={20} color="var(--primary)" /> Telemetry Webhooks Simulator
+            </h2>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              Simulate incoming telemetry data stream from connected services (Radar SDK, Arcadia Utility, Nest Thermostat) to test backend ingestion pipeline.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Radar.io Webhook Section */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', color: 'var(--accent)' }}>📡 Radar.io Transit SDK</div>
+                <div className="form-row" style={{ marginBottom: '10px' }}>
+                  <div className="input-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Trip Distance (Miles)</label>
+                    <input
+                      type="number"
+                      className="input-field"
+                      style={{ padding: '8px 12px', fontSize: '14px' }}
+                      value={simRadarDistance}
+                      onChange={e => setSimRadarDistance(Number(e.target.value))}
+                    />
+                  </div>
+                  <div className="input-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Transit Mode</label>
+                    <select
+                      className="input-field"
+                      style={{ padding: '8px 12px', fontSize: '14px' }}
+                      value={simRadarMode}
+                      onChange={e => setSimRadarMode(e.target.value as any)}
+                    >
+                      <option value="suv">Gas SUV</option>
+                      <option value="gas_car">Gas Sedan</option>
+                      <option value="hybrid">Hybrid</option>
+                      <option value="ev">Electric EV</option>
+                      <option value="transit">Transit/Bike</option>
+                    </select>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  style={{ padding: '8px 14px', fontSize: '13px', borderRadius: '6px', width: 'auto' }}
+                  onClick={triggerRadarWebhook}
+                  disabled={loading}
+                >
+                  Simulate Radar Ingestion
+                </button>
+              </div>
+
+              {/* Arcadia Webhook Section */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', color: 'hsl(200, 80%, 50%)' }}>🔌 Arcadia Utility Billing</div>
+                <div className="input-group" style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Power Billing (kWh)</label>
+                  <input
+                    type="number"
+                    className="input-field"
+                    style={{ padding: '8px 12px', fontSize: '14px' }}
+                    value={simArcadiaKwh}
+                    onChange={e => setSimArcadiaKwh(Number(e.target.value))}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  style={{ padding: '8px 14px', fontSize: '13px', borderRadius: '6px', background: 'linear-gradient(135deg, hsl(200, 80%, 40%) 0%, hsl(200, 80%, 50%) 100%)', width: 'auto' }}
+                  onClick={triggerArcadiaWebhook}
+                  disabled={loading}
+                >
+                  Simulate Arcadia Billing
+                </button>
+              </div>
+
+              {/* Nest Webhook Section */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', color: 'var(--warning)' }}>🏡 Google Nest Thermostat</div>
+                <div className="input-group" style={{ marginBottom: '10px' }}>
+                  <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Thermostat Mode</label>
+                  <select
+                    className="input-field"
+                    style={{ padding: '8px 12px', fontSize: '14px' }}
+                    value={simNestEco ? 'eco' : 'standard'}
+                    onChange={e => setSimNestEco(e.target.value === 'eco')}
+                  >
+                    <option value="standard">Standard HVAC heating/cooling</option>
+                    <option value="eco">Nest Eco-Mode Active</option>
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  style={{ padding: '8px 14px', fontSize: '13px', borderRadius: '6px', background: 'linear-gradient(135deg, var(--warning) 0%, var(--leaves-xp) 100%)', width: 'auto' }}
+                  onClick={triggerNestWebhook}
+                  disabled={loading}
+                >
+                  Simulate Nest Telemetry Check
+                </button>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         {/* Right Side: Eco-Sphere Visual, Challenges, Ad Campaigns */}
         <div className="right-panel">
 
-          {/* Visual Eco-Sphere Sphere Canvas */}
-          <div className="panel-card glass-panel" style={{ textAlign: 'center', position: 'relative' }}>
-            <h2 className="panel-title" style={{ justifyContent: 'center' }}><Award size={20} color="var(--leaves-xp)" /> Virtual Eco-Sphere</h2>
-
-            <div className="ecosphere-widget">
-              {renderEcoSphere()}
-              <div className="ecosphere-label">Eco-Sphere Level {user.current_level}</div>
+          {/* Visual Eco-Sphere / Eco-Leagues Leaderboard Tabbed Panel */}
+          <div className="panel-card glass-panel" style={{ position: 'relative' }}>
+            {/* Tabs Header */}
+            <div className="flex justify-center border-b mb-5" style={{ borderColor: 'var(--border-color)', borderBottomWidth: '1px', borderBottomStyle: 'solid', display: 'flex', gap: '16px' }}>
+              <button
+                type="button"
+                className={`pb-2 font-display font-bold text-sm transition-all`}
+                style={{
+                  borderBottomColor: ecoSphereTab === 'sphere' ? 'var(--accent)' : 'transparent',
+                  color: ecoSphereTab === 'sphere' ? 'var(--accent)' : 'var(--text-dim)',
+                  background: 'transparent',
+                  borderTop: 'none',
+                  borderLeft: 'none',
+                  borderRight: 'none',
+                  borderBottomWidth: '2px',
+                  borderBottomStyle: 'solid',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  paddingBottom: '8px',
+                  fontWeight: 700
+                }}
+                onClick={() => setEcoSphereTab('sphere')}
+              >
+                Virtual Eco-Sphere
+              </button>
+              <button
+                type="button"
+                className={`pb-2 font-display font-bold text-sm transition-all`}
+                style={{
+                  borderBottomColor: ecoSphereTab === 'league' ? 'var(--accent)' : 'transparent',
+                  color: ecoSphereTab === 'league' ? 'var(--accent)' : 'var(--text-dim)',
+                  background: 'transparent',
+                  borderTop: 'none',
+                  borderLeft: 'none',
+                  borderRight: 'none',
+                  borderBottomWidth: '2px',
+                  borderBottomStyle: 'solid',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  paddingBottom: '8px',
+                  fontWeight: 700
+                }}
+                onClick={() => setEcoSphereTab('league')}
+              >
+                Eco-Leagues Leaderboard
+              </button>
             </div>
 
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
-              Level up your habitat and watch new branches, flowers, and silver birches grow by earning Leaves!
-            </p>
+            {ecoSphereTab === 'sphere' ? (
+              <div style={{ textAlign: 'center' }}>
+                <div className="ecosphere-widget">
+                  {renderEcoSphere()}
+                  <div className="ecosphere-label">Eco-Sphere Level {user.current_level}</div>
+                </div>
+
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                  Level up your habitat and watch new branches, flowers, and silver birches grow by earning Leaves!
+                </p>
+              </div>
+            ) : (
+              <div className="leaderboard-container" style={{ maxHeight: '330px', overflowY: 'auto', padding: '8px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', padding: '0 8px' }}>
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)' }}>Competitor</span>
+                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)' }}>Leaves</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {leaderboard.map((member, index) => {
+                    const isCurrentUser = member.userId === user.id;
+                    return (
+                      <div
+                        key={member.id}
+                        style={{
+                          background: isCurrentUser ? 'var(--accent-glow)' : 'rgba(0, 0, 0, 0.2)',
+                          borderColor: isCurrentUser ? 'var(--accent)' : 'var(--border-color)',
+                          borderRadius: '8px',
+                          borderWidth: '1px',
+                          borderStyle: 'solid',
+                          padding: '10px 14px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          transition: 'all 0.2s ease',
+                          boxShadow: isCurrentUser ? '0 0 10px var(--accent-glow)' : 'none'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '14px', width: '24px', textAlign: 'center', color: isCurrentUser ? 'var(--accent)' : 'var(--text-dim)' }}>
+                            #{index + 1}
+                          </span>
+                          <span style={{ fontWeight: 600, fontSize: '14px', color: isCurrentUser ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                            {member.username} {isCurrentUser && ' (You)'}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: '4px', padding: '2px 6px', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600 }}>
+                            Lvl {member.level}
+                          </span>
+                          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '14px', color: 'var(--leaves-xp)', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                            {member.leaves} <Leaf size={12} fill="var(--leaves-xp)" style={{ display: 'inline' }} />
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Active 7-Day Challenges */}

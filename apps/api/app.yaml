@@ -1,0 +1,24 @@
+# Google App Engine Flexible environment configuration for @footprint/api
+runtime: nodejs
+env: flex
+
+# Entrypoint targeted directly at the workspaces workspace
+entrypoint: npm start -w @footprint/api
+
+# Manual scaling configured for low-overhead hackathon/testing limits
+manual_scaling:
+  instances: 1
+
+# Resource allocations
+resources:
+  cpu: 1
+  memory_gb: 1.5
+  disk_size_gb: 10
+
+# Default environment variables
+env_variables:
+  NODE_ENV: 'production'
+  PORT: '8080'
+  GOOGLE_CLOUD_PROJECT: 'footprint-gcp-project'
+  PUBSUB_TOPIC: 'carbon-events-topic'
+  PUBSUB_SUBSCRIPTION: 'carbon-events-sub'

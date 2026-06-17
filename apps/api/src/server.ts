@@ -6,8 +6,13 @@ import {
   query, 
   queryOne, 
   run, 
-  seedUserChallenges 
+  seedUserChallenges,
+  seedWeeklyLeague
 } from './database.js';
+import { 
+  publishCarbonEvent, 
+  startPubSubSubscriber 
+} from './gcp.js';
 import { 
   computeHousingCO2, 
   computeTransportCO2, 
@@ -70,6 +75,9 @@ app.post('/api/users', async (req, res) => {
 
     // Seed challenges
     await seedUserChallenges(userId);
+
+    // Seed weekly Eco-Leagues leaderboard
+    await seedWeeklyLeague(userId);
 
     // Seed historical baseline events for the last 6 months (to display rich charts)
     const now = new Date();
@@ -170,10 +178,20 @@ app.post('/api/carbon-events', async (req, res) => {
     const eventId = crypto.randomUUID();
     const timestamp = new Date().toISOString();
 
-    await run(`
-      INSERT INTO carbon_events (id, user_id, category, source_provider, raw_value, raw_unit, computed_co2e_kg, region_code, timestamp)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [eventId, userId, category, source_provider || 'manual', raw_value, raw_unit, computedCO2, region_code || 'default', timestamp]);
+    // Publish ingestion payload to GCP Pub/Sub
+    await publishCarbonEvent({
+      userId,
+      category,
+      source_provider: source_provider || 'manual',
+      raw_value,
+      raw_unit,
+      region_code: region_code || 'default',
+      transportMode,
+      dietType,
+      housingOption,
+      eventId,
+      timestamp
+    } as any);
 
     // Award leaves for registering an event: 15 Leaves standard
     let leavesAwarded = 15;
@@ -187,18 +205,28 @@ app.post('/api/carbon-events', async (req, res) => {
       leavesAwarded += 20; // 35 leaves total
     }
 
-    // Update user leaves
     const user = await queryOne<User>('SELECT * FROM users WHERE id = ?', [userId]);
-    if (user) {
-      const newLeaves = user.total_leaves + leavesAwarded;
-      const newLevel = calculateLevel(newLeaves);
-      await run('UPDATE users SET total_leaves = ?, current_level = ? WHERE id = ?', [newLeaves, newLevel, userId]);
-    }
+    const updatedUser = user 
+      ? {
+          ...user,
+          total_leaves: user.total_leaves + leavesAwarded,
+          current_level: calculateLevel(user.total_leaves + leavesAwarded)
+        }
+      : null;
 
-    const createdEvent = await queryOne<CarbonEvent>('SELECT * FROM carbon_events WHERE id = ?', [eventId]);
-    const updatedUser = await queryOne<User>('SELECT * FROM users WHERE id = ?', [userId]);
+    const projectedEvent: CarbonEvent = {
+      id: eventId,
+      user_id: userId,
+      category,
+      source_provider: source_provider || 'manual',
+      raw_value,
+      raw_unit,
+      computed_co2e_kg: computedCO2,
+      region_code: region_code || 'default',
+      timestamp
+    };
 
-    res.status(201).json({ event: createdEvent, user: updatedUser, leavesAwarded });
+    res.status(201).json({ event: projectedEvent, user: updatedUser, leavesAwarded });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -271,6 +299,7 @@ app.post('/api/challenges/progress', async (req, res) => {
         const newLeaves = user.total_leaves + leavesAwarded;
         const newLevel = calculateLevel(newLeaves);
         await run('UPDATE users SET total_leaves = ?, current_level = ? WHERE id = ?', [newLeaves, newLevel, userId]);
+        await run('UPDATE leagues SET leaves = ?, level = ? WHERE user_id = ?', [newLeaves, newLevel, userId]);
       }
     }
 
@@ -386,7 +415,192 @@ app.get('/api/vouchers/:userId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+// 9. GET /api/leagues/:userId - Fetch Eco-Leagues Leaderboard
+app.get('/api/leagues/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    await seedWeeklyLeague(userId);
+    const leaderboard = await query<any>('SELECT * FROM leagues');
+    
+    // Format response
+    const sorted = leaderboard.map(l => ({
+      id: l.id,
+      userId: l.user_id,
+      username: l.username,
+      leaves: l.leaves,
+      level: l.level,
+      isMock: l.is_mock === 1
+    }));
+    sorted.sort((a, b) => b.leaves - a.leaves);
+    
+    res.json(sorted);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 10. POST /api/webhooks/radar - Ingest trip summaries from Radar.io SDK
+app.post('/api/webhooks/radar', async (req, res) => {
+  try {
+    let userId = req.body.userId;
+    let distanceMiles = req.body.distanceMiles;
+    let transportMode = req.body.mode;
+
+    // Parse raw Radar.io webhook format if available
+    if (req.body.event && req.body.event.user) {
+      userId = req.body.event.user.id;
+      const meters = req.body.event.trip?.distanceMeters || 0;
+      distanceMiles = parseFloat((meters / 1609.34).toFixed(2));
+      
+      const rawMode = req.body.event.trip?.transportMode;
+      if (rawMode === 'car') transportMode = 'gas_car';
+      else if (rawMode === 'foot' || rawMode === 'bike') transportMode = 'transit';
+      else if (rawMode === 'train') transportMode = 'transit';
+      else transportMode = 'gas_car';
+    }
+
+    if (!userId || !distanceMiles) {
+      res.status(400).json({ error: 'Missing webhook properties' });
+      return;
+    }
+
+    const eventId = crypto.randomUUID();
+    const timestamp = new Date().toISOString();
+
+    await publishCarbonEvent({
+      userId,
+      category: 'transport',
+      source_provider: 'radar_sdk',
+      raw_value: distanceMiles,
+      raw_unit: 'miles',
+      transportMode: transportMode || 'gas_car',
+      eventId,
+      timestamp
+    } as any);
+
+    res.json({ status: 'queued', eventId, distanceMiles, mode: transportMode });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 11. POST /api/webhooks/arcadia - Ingest monthly energy billing files
+app.post('/api/webhooks/arcadia', async (req, res) => {
+  try {
+    const { userId, kwh } = req.body;
+    if (!userId || !kwh) {
+      res.status(400).json({ error: 'Missing parameters' });
+      return;
+    }
+
+    const eventId = crypto.randomUUID();
+    const timestamp = new Date().toISOString();
+
+    await publishCarbonEvent({
+      userId,
+      category: 'housing',
+      source_provider: 'arcadia',
+      raw_value: kwh,
+      raw_unit: 'kWh',
+      housingOption: 'standard',
+      eventId,
+      timestamp
+    } as any);
+
+    res.json({ status: 'queued', eventId, kwh });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 12. POST /api/webhooks/nest - Smart Home thermostat check
+app.post('/api/webhooks/nest', async (req, res) => {
+  try {
+    const { userId, hvacMode, ecoModeActive } = req.body;
+    if (!userId) {
+      res.status(400).json({ error: 'Missing userId parameter' });
+      return;
+    }
+
+    const leavesAwarded = ecoModeActive ? 25 : 5;
+    const user = await queryOne<User>('SELECT * FROM users WHERE id = ?', [userId]);
+    let updatedUser = null;
+    
+    if (user) {
+      const newLeaves = user.total_leaves + leavesAwarded;
+      const newLevel = calculateLevel(newLeaves);
+      await run('UPDATE users SET total_leaves = ?, current_level = ? WHERE id = ?', [newLeaves, newLevel, userId]);
+      await run('UPDATE leagues SET leaves = ?, level = ? WHERE user_id = ?', [newLeaves, newLevel, userId]);
+      updatedUser = await queryOne<User>('SELECT * FROM users WHERE id = ?', [userId]);
+    }
+
+    res.json({
+      status: 'success',
+      hvacMode,
+      ecoModeActive,
+      leavesAwarded,
+      user: updatedUser
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`Footprint API server listening on http://localhost:${PORT}`);
+});
+
+// Start Pub/Sub background listener
+startPubSubSubscriber(async (payload: any) => {
+  console.log('Pub/Sub subscriber processing payload:', payload);
+  const { 
+    userId, 
+    category, 
+    source_provider, 
+    raw_value, 
+    raw_unit, 
+    region_code, 
+    transportMode, 
+    dietType,
+    housingOption,
+    eventId,
+    timestamp
+  } = payload;
+
+  let computedCO2 = 0;
+  if (category === 'housing') {
+    computedCO2 = computeHousingCO2(raw_value, housingOption || 'standard', region_code || 'default');
+  } else if (category === 'transport') {
+    computedCO2 = computeTransportCO2(raw_value, transportMode || 'gas_car');
+  } else if (category === 'food') {
+    computedCO2 = computeFoodCO2(raw_value, dietType || 'balanced');
+  }
+
+  // Insert carbon event into database
+  await run(`
+    INSERT INTO carbon_events (id, user_id, category, source_provider, raw_value, raw_unit, computed_co2e_kg, region_code, timestamp)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [eventId, userId, category, source_provider || 'manual', raw_value, raw_unit, computedCO2, region_code || 'default', timestamp]);
+
+  // Award leaves
+  let leavesAwarded = 15;
+  if (category === 'transport' && (transportMode === 'ev' || transportMode === 'transit')) {
+    leavesAwarded += 15;
+  } else if (category === 'food' && dietType === 'vegan') {
+    leavesAwarded += 10;
+  } else if (category === 'housing' && housingOption === 'solar') {
+    leavesAwarded += 20;
+  }
+
+  const user = await queryOne<User>('SELECT * FROM users WHERE id = ?', [userId]);
+  if (user) {
+    const newLeaves = user.total_leaves + leavesAwarded;
+    const newLevel = calculateLevel(newLeaves);
+    await run('UPDATE users SET total_leaves = ?, current_level = ? WHERE id = ?', [newLeaves, newLevel, userId]);
+    await run('UPDATE leagues SET leaves = ?, level = ? WHERE user_id = ?', [newLeaves, newLevel, userId]);
+  }
+  
+  console.log(`Subscriber processed event successfully: ${eventId}`);
+}).catch(err => {
+  console.error('Failed to start Pub/Sub subscriber:', err);
 });
