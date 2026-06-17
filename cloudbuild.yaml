@@ -56,13 +56,6 @@ steps:
       - '--platform=managed'
       - '--allow-unauthenticated'
 
-# Push images to Artifact Registry
-images:
-  - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:${COMMIT_SHA}'
-  - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:latest'
-  - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-web:${COMMIT_SHA}'
-  - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-web:latest'
-
 # Default values for substitution variables
 substitutions:
   _AR_LOCATION: 'us-central1'
@@ -71,3 +64,10 @@ substitutions:
 #log
 options:
   logging: CLOUD_LOGGING_ONLY
+
+# Push images to Artefact Registry
+images:
+  - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:${COMMIT_SHA}'
+  - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:latest'
+  - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-web:${COMMIT_SHA}'
+  - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-web:latest'
