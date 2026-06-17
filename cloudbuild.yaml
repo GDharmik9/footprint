@@ -67,3 +67,7 @@ images:
 substitutions:
   _AR_LOCATION: 'us-central1'
   _AR_REPOSITORY: 'footprint'
+
+#log
+options:
+  logging: CLOUD_LOGGING_ONLY
