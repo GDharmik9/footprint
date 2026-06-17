@@ -71,6 +71,7 @@ model Voucher {
 
 model League {
   id       String  @id
+  leagueId String  @map("league_id")
   userId   String? @map("user_id")
   username String
   leaves   Int     @default(0)

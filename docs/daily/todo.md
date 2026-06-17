@@ -9,6 +9,9 @@ Use this checklist to track tasks and feature backlogs.
 - [x] Write unit test suites for `@footprint/carbon-math`.
 - [x] Connect the Express backend to a local dockerized PostgreSQL instance.
 - [x] Implement user session authentication (JWT).
+- [x] Integrate Electricity Maps API for live grid coefficients.
+- [x] Integrate Radar.io web SDK, Arcadia Connect Widget, and Nest SDM API.
+- [x] Group active users into 30-person leagues and implement standings reset crons.
 - [ ] Set up continuous integration workflows via GitHub Actions.
 
 ## 🛠️ Enhancements & Technical Debt

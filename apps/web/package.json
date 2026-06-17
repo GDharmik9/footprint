@@ -13,6 +13,7 @@
     "@footprint/carbon-math": "*",
     "@footprint/shared-types": "*",
     "lucide-react": "^0.378.0",
+    "radar-sdk-js": "^5.1.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

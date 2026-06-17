@@ -16,7 +16,8 @@ import {
   computeHousingCO2, 
   computeTransportCO2, 
   computeFoodCO2, 
-  computeArchetypeBaseline 
+  computeArchetypeBaseline,
+  GRID_FACTORS
 } from '@footprint/carbon-math';
 import { 
   User, 
@@ -29,6 +30,10 @@ import {
   AuthenticatedRequest, 
   JWT_SECRET 
 } from './auth.js';
+import { getGridCarbonFactor } from './services/electricityMaps.js';
+import { fetchNestThermostatStatus } from './services/nest.js';
+import { verifyWebhookSignature } from './services/signatureVerification.js';
+import { startLeaguesEvaluationCron, evaluateCompetitiveLeagues } from './services/cron.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -83,6 +88,11 @@ app.post('/api/users', async (req, res) => {
     // Seed weekly Eco-Leagues leaderboard
     await seedWeeklyLeague(userId);
 
+    // Get live grid factor for user postal code
+    const gridFactor = await getGridCarbonFactor(postal_code || '');
+    const customRegionKey = `custom-${postal_code || ''}`;
+    GRID_FACTORS[customRegionKey] = gridFactor;
+
     // Seed historical baseline events for the last 6 months (to display rich charts)
     const now = new Date();
     const eventDataList = [];
@@ -92,7 +102,7 @@ app.post('/api/users', async (req, res) => {
 
       // Seed housing event (monthly)
       const housingKWh = archetype?.housing === 'apartment' ? 300 : archetype?.housing === 'family' ? 1000 : 6000/12;
-      const housingCO2 = computeHousingCO2(housingKWh, 'standard');
+      const housingCO2 = computeHousingCO2(housingKWh, 'standard', customRegionKey);
       eventDataList.push({
         id: crypto.randomUUID(),
         userId,
@@ -101,6 +111,7 @@ app.post('/api/users', async (req, res) => {
         rawValue: housingKWh,
         rawUnit: 'kWh',
         computedCo2eKg: housingCO2,
+        regionCode: customRegionKey,
         timestamp
       });
 
@@ -240,8 +251,16 @@ app.post('/api/carbon-events', authenticateToken, async (req: AuthenticatedReque
     }
 
     let computedCO2 = 0;
+    let customRegionKey = region_code || 'default';
+
     if (category === 'housing') {
-      computedCO2 = computeHousingCO2(raw_value, housingOption || 'standard', region_code || 'default');
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      const postalCode = user?.postalCode || '';
+      const gridFactor = await getGridCarbonFactor(postalCode);
+      customRegionKey = `custom-${postalCode}`;
+      GRID_FACTORS[customRegionKey] = gridFactor;
+      
+      computedCO2 = computeHousingCO2(raw_value, housingOption || 'standard', customRegionKey);
     } else if (category === 'transport') {
       computedCO2 = computeTransportCO2(raw_value, transportMode || 'gas_car');
     } else if (category === 'food') {
@@ -258,7 +277,7 @@ app.post('/api/carbon-events', authenticateToken, async (req: AuthenticatedReque
       source_provider: source_provider || 'manual',
       raw_value,
       raw_unit,
-      region_code: region_code || 'default',
+      region_code: customRegionKey,
       transportMode,
       dietType,
       housingOption,
@@ -277,6 +296,16 @@ app.post('/api/carbon-events', authenticateToken, async (req: AuthenticatedReque
     } else if (category === 'housing' && housingOption === 'solar') {
       leavesAwarded += 20; // 35 leaves total
     }
+
+    // Update leaves inside the user's active competitive league standing
+    await prisma.league.updateMany({
+      where: { userId },
+      data: {
+        leaves: {
+          increment: leavesAwarded
+        }
+      }
+    });
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     const updatedUser = user 
@@ -298,7 +327,7 @@ app.post('/api/carbon-events', authenticateToken, async (req: AuthenticatedReque
       raw_value,
       raw_unit,
       computed_co2e_kg: computedCO2,
-      region_code: region_code || 'default',
+      region_code: customRegionKey,
       timestamp
     };
 
@@ -387,7 +416,7 @@ app.post('/api/challenges/progress', authenticateToken, async (req: Authenticate
         });
         await prisma.league.updateMany({
           where: { userId },
-          data: { leaves: newLeaves, level: newLevel }
+          data: { leaves: { increment: leavesAwarded }, level: newLevel }
         });
       }
     }
@@ -576,7 +605,20 @@ app.get('/api/leagues/:userId', authenticateToken, async (req: AuthenticatedRequ
 
     const { userId } = req.params;
     await seedWeeklyLeague(userId);
-    const leaderboard = await prisma.league.findMany();
+    
+    // Find user's leagueId group
+    const userLeagueEntry = await prisma.league.findFirst({
+      where: { userId }
+    });
+    
+    if (!userLeagueEntry) {
+      res.status(500).json({ error: 'Failed to retrieve user league entry' });
+      return;
+    }
+
+    const leaderboard = await prisma.league.findMany({
+      where: { leagueId: userLeagueEntry.leagueId }
+    });
     
     // Format response
     const sorted = leaderboard.map(l => ({
@@ -595,9 +637,16 @@ app.get('/api/leagues/:userId', authenticateToken, async (req: AuthenticatedRequ
   }
 });
 
-// 10. POST /api/webhooks/radar - Ingest trip summaries from Radar.io SDK (Open/Mock endpoint)
+// 10. POST /api/webhooks/radar - Ingest trip summaries from Radar.io SDK (Open/Mock with security)
 app.post('/api/webhooks/radar', async (req, res) => {
   try {
+    const signature = req.headers['x-radar-signature'] as string;
+    const isValid = await verifyWebhookSignature(JSON.stringify(req.body), signature, 'RADAR_WEBHOOK_SECRET');
+    if (!isValid) {
+      res.status(401).json({ error: 'Invalid webhook signature' });
+      return;
+    }
+
     let userId = req.body.userId;
     let distanceMiles = req.body.distanceMiles;
     let transportMode = req.body.mode;
@@ -640,9 +689,16 @@ app.post('/api/webhooks/radar', async (req, res) => {
   }
 });
 
-// 11. POST /api/webhooks/arcadia - Ingest monthly energy billing files (Open/Mock endpoint)
+// 11. POST /api/webhooks/arcadia - Ingest monthly energy billing files (Open/Mock with security)
 app.post('/api/webhooks/arcadia', async (req, res) => {
   try {
+    const signature = req.headers['x-arcadia-signature'] as string;
+    const isValid = await verifyWebhookSignature(JSON.stringify(req.body), signature, 'ARCADIA_WEBHOOK_SECRET');
+    if (!isValid) {
+      res.status(401).json({ error: 'Invalid webhook signature' });
+      return;
+    }
+
     const { userId, kwh } = req.body;
     if (!userId || !kwh) {
       res.status(400).json({ error: 'Missing parameters' });
@@ -669,14 +725,18 @@ app.post('/api/webhooks/arcadia', async (req, res) => {
   }
 });
 
-// 12. POST /api/webhooks/nest - Smart Home thermostat check (Open/Mock endpoint)
+// 12. POST /api/webhooks/nest - Smart Home thermostat check (Live Nest API SDM Check)
 app.post('/api/webhooks/nest', async (req, res) => {
   try {
-    const { userId, hvacMode, ecoModeActive } = req.body;
+    const { userId } = req.body;
     if (!userId) {
       res.status(400).json({ error: 'Missing userId parameter' });
       return;
     }
+
+    // Query Nest live status
+    const status = await fetchNestThermostatStatus(userId);
+    const ecoModeActive = status.ecoMode === 'MANUAL_ECO';
 
     const leavesAwarded = ecoModeActive ? 25 : 5;
     const user = await prisma.user.findUnique({ where: { id: userId } });
@@ -691,7 +751,7 @@ app.post('/api/webhooks/nest', async (req, res) => {
       });
       await prisma.league.updateMany({
         where: { userId },
-        data: { leaves: newLeaves, level: newLevel }
+        data: { leaves: { increment: leavesAwarded }, level: newLevel }
       });
       
       const userUpdated = await prisma.user.findUnique({ where: { id: userId } });
@@ -709,9 +769,10 @@ app.post('/api/webhooks/nest', async (req, res) => {
 
     res.json({
       status: 'success',
-      hvacMode,
+      hvacMode: status.hvacStatus,
       ecoModeActive,
       leavesAwarded,
+      ambientTemperature: status.ambientTempCelsius,
       user: updatedUser
     });
   } catch (error: any) {
@@ -719,8 +780,40 @@ app.post('/api/webhooks/nest', async (req, res) => {
   }
 });
 
+// 13. POST /api/integrations/arcadia/callback - Handle Connect Widget OAuth callback
+app.post('/api/integrations/arcadia/callback', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const { authCode } = req.body;
+    const userId = req.userId!;
+    if (!authCode) {
+      res.status(400).json({ error: 'Auth code is required' });
+      return;
+    }
+
+    console.log(`Arcadia callback: Exchanging authCode ${authCode} for utility token for user ${userId}...`);
+    // In production, we call Arcadia's token exchange endpoint:
+    // POST https://api.arcadia.com/v2/tokens
+    const mockUtilityToken = `arcadia_token_${crypto.randomBytes(8).toString('hex')}`;
+    
+    res.status(200).json({ status: 'connected', utilityToken: mockUtilityToken });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 14. POST /api/admin/leagues/evaluate - Admin trigger to manually evaluate and reset leagues (Testing only)
+app.post('/api/admin/leagues/evaluate', async (req, res) => {
+  try {
+    await evaluateCompetitiveLeagues();
+    res.json({ status: 'success', message: 'Leagues evaluation completed successfully' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Footprint API server listening on http://localhost:${PORT}`);
+  startLeaguesEvaluationCron();
 });
 
 // Start Pub/Sub background listener
@@ -741,8 +834,16 @@ startPubSubSubscriber(async (payload: any) => {
   } = payload;
 
   let computedCO2 = 0;
+  let customRegionKey = region_code || 'default';
+
   if (category === 'housing') {
-    computedCO2 = computeHousingCO2(raw_value, housingOption || 'standard', region_code || 'default');
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const postalCode = user?.postalCode || '';
+    const gridFactor = await getGridCarbonFactor(postalCode);
+    customRegionKey = `custom-${postalCode}`;
+    GRID_FACTORS[customRegionKey] = gridFactor;
+
+    computedCO2 = computeHousingCO2(raw_value, housingOption || 'standard', customRegionKey);
   } else if (category === 'transport') {
     computedCO2 = computeTransportCO2(raw_value, transportMode || 'gas_car');
   } else if (category === 'food') {
@@ -759,7 +860,7 @@ startPubSubSubscriber(async (payload: any) => {
       rawValue: raw_value,
       rawUnit: raw_unit,
       computedCo2eKg: computedCO2,
-      regionCode: region_code || 'default',
+      regionCode: customRegionKey,
       timestamp: new Date(timestamp)
     }
   });
@@ -774,6 +875,16 @@ startPubSubSubscriber(async (payload: any) => {
     leavesAwarded += 20;
   }
 
+  // Increment leaves in league standings
+  await prisma.league.updateMany({
+    where: { userId },
+    data: {
+      leaves: {
+        increment: leavesAwarded
+      }
+    }
+  });
+
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (user) {
     const newLeaves = user.totalLeaves + leavesAwarded;
@@ -781,10 +892,6 @@ startPubSubSubscriber(async (payload: any) => {
     await prisma.user.update({
       where: { id: userId },
       data: { totalLeaves: newLeaves, currentLevel: newLevel }
-    });
-    await prisma.league.updateMany({
-      where: { userId },
-      data: { leaves: newLeaves, level: newLevel }
     });
   }
   

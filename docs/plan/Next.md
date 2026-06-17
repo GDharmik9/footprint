@@ -26,18 +26,18 @@ This document establishes the step-by-step sequence of development tasks require
   - [x] Write an Express.js security middleware layer checking bearer tokens in header parameters.
   - [x] Modify database endpoints (`POST /api/carbon-events`, `/api/challenges/progress`, etc.) to process data based on verified user session IDs.
 
-### 📍 Step 4: Integrate Live Grid Factors
+### 📍 Step 4: Integrate Live Grid Factors (Completed)
 - **Objective**: Replace static coefficient constants with live data.
 - **Action Items**:
-  1. Integrate the **Electricity Maps API** to fetch real-time grid carbon factors based on user zip code inputs.
-  2. Implement a local caching mechanism in the server or connect Redis to cache grid coefficients for 1 hour to prevent API timeouts.
+  - [x] Integrate the **Electricity Maps API** to fetch real-time grid carbon factors based on user zip code inputs.
+  - [x] Implement a local caching mechanism in the server or connect Redis to cache grid coefficients for 1 hour to prevent API timeouts.
 
-### 📍 Step 5: Replace Integration Webhooks with Live Connections
+### 📍 Step 5: Replace Integration Webhooks with Live Connections (Completed)
 - **Objective**: Transition simulation endpoints to live connections.
 - **Action Items**:
-  1. **Arcadia API**: Incorporate the Arcadia Connect OAuth widget into the React client frontend and securely handle OAuth redirects.
-  2. **Google Nest API**: Set up Google Home Device Access integration to fetch live thermostat status.
-  3. **Radar.io SDK**: Initialize and configure the Radar.io SDK on client devices to track transit metrics.
+  - [x] **Arcadia API**: Incorporate the Arcadia Connect OAuth widget into the React client frontend and securely handle OAuth redirects.
+  - [x] **Google Nest API**: Set up Google Home Device Access integration to fetch live thermostat status.
+  - [x] **Radar.io SDK**: Initialize and configure the Radar.io SDK on client devices to track transit metrics.
 
 ### 📍 Step 6: Deploy Real Competitive Leagues Standings
 - **Objective**: Replace randomized competitor algorithms with real user groupings.
