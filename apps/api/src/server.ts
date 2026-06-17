@@ -34,6 +34,9 @@ import { getGridCarbonFactor } from './services/electricityMaps.js';
 import { fetchNestThermostatStatus } from './services/nest.js';
 import { verifyWebhookSignature } from './services/signatureVerification.js';
 import { startLeaguesEvaluationCron, evaluateCompetitiveLeagues } from './services/cron.js';
+import { triggerTreePlanting } from './services/eden.js';
+import { generateShopifyDiscountCode } from './services/shopify.js';
+
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -505,23 +508,22 @@ app.post('/api/sponsors/redeem', authenticateToken, async (req: AuthenticatedReq
 
     // Create Voucher
     const voucherId = crypto.randomUUID();
-    const couponCode = rewardType === 'discount' 
-      ? `OATLY-15-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
-      : rewardType === 'plug' 
-      ? `ARCADIA-PLUG-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
-      : undefined;
-
+    let couponCode: string | undefined = undefined;
     let title = '';
     let description = '';
 
     if (rewardType === 'tree') {
       title = 'Eden Projects tree planting';
-      description = `1 physical tree has been funded in your name through ${sponsorName}.`;
+      const plantingResult = await triggerTreePlanting(userId, 1);
+      description = `1 physical tree has been funded in your name through ${sponsorName}. Tracking receipt: ${plantingResult.trackingUrl}`;
     } else if (rewardType === 'discount') {
       title = '15% Off Oatly Products';
+      const discountResult = await generateShopifyDiscountCode(userId, sponsorName, costLeaves);
+      couponCode = discountResult.couponCode;
       description = `Get 15% discount checkout coupon code funded by Oatly.`;
     } else if (rewardType === 'plug') {
       title = 'Smart Utility energy plug';
+      couponCode = `ARCADIA-PLUG-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
       description = `A complimentary Smart Energy plug delivered to your doorstep.`;
     }
 

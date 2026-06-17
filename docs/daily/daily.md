@@ -7,6 +7,8 @@ This document tracks daily standup notes, progress, and blockers.
 ## 📅 Today: June 17, 2026
 
 ### 🙋 Done:
+- [17:46:00] Completed Cloud Deployment Pipeline setup. Created the production-grade `cloudbuild.yaml` configuration file, establishing CI/CD pipelines to build/push Docker containers and deploy both the API and web client to Google Cloud Run with Secret Manager integrations.
+- [17:44:00] Integrated Reward Fulfillment APIs. Created the Eden Reforest Projects service to trigger tree plantings and the Shopify service for dynamic checkout coupons, connecting both to the leaf redemption route with sandbox fallbacks.
 - [17:41:00] Deployed real competitive Eco-Leagues standings. Refactored the leagues assignment algorithms to dynamically group users into 30-person league pools, populated empty spots with randomized mock competitors within the same league ID, and launched a weekly standings evaluation scheduler to handle rank promotions and score resets.
 - [17:35:00] Replaced integration webhooks with live connection endpoints and SDKs. Integrated Radar.io web SDK for browser-based location tracking on transit events, added the Arcadia Connect Connect Widget for OAuth billing credential linking, created a Nest SDM API helper for reading live thermostat states, and secured webhook endpoints with HMAC-SHA256 signature verification.
 - [16:56:00] Integrated live grid factors from the Electricity Maps API. Developed a lookup service mapping user postal codes to regional coordinates, cached grid coefficients for 1 hour to prevent API rate limits, and dynamically injected these coefficients into all housing footprint computations.

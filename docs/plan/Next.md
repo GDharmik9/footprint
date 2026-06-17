@@ -45,16 +45,16 @@ This document establishes the step-by-step sequence of development tasks require
   1. Write SQL query helpers to group active users into 30-person league tables.
   2. Implement weekly cron routines to manage user standings, promotions/demotions, and weekly streak evaluations.
 
-### 📍 Step 7: Integrate Reward Fulfillment Integrations
+### 📍 Step 7: Integrate Reward Fulfillment Integrations (Completed)
 - **Objective**: Provide users with actual, validated rewards.
 - **Action Items**:
-  1. Connect `POST /api/sponsors/redeem` to the Eden Reforest Projects API to trigger tree plantings.
-  2. Integrate verified corporate sponsor inventories (e.g. Shopify API) to fetch real discount coupons.
+  - [x] Connect `POST /api/sponsors/redeem` to the Eden Reforest Projects API to trigger tree plantings.
+  - [x] Integrate verified corporate sponsor inventories (e.g. Shopify API) to fetch real discount coupons.
 
-### 📍 Step 8: Build Cloud Deployment Pipelines
+### 📍 Step 8: Build Cloud Deployment Pipelines (Completed)
 - **Objective**: Move the local monorepo to production on Google Cloud Platform.
 - **Action Items**:
-  1. Create Google Cloud Build configurations (`cloudbuild.yaml`).
-  2. Deploy API services to GCP Cloud Run.
-  3. Configure Google Cloud Pub/Sub queues to ingest telemetry streams asynchronously.
-  4. Secure connection strings inside GCP Secret Manager.
+  - [x] Create Google Cloud Build configurations (`cloudbuild.yaml`).
+  - [x] Deploy API services to GCP Cloud Run.
+  - [x] Configure Google Cloud Pub/Sub queues to ingest telemetry streams asynchronously.
+  - [x] Secure connection strings inside GCP Secret Manager.

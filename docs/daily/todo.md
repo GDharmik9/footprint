@@ -12,7 +12,9 @@ Use this checklist to track tasks and feature backlogs.
 - [x] Integrate Electricity Maps API for live grid coefficients.
 - [x] Integrate Radar.io web SDK, Arcadia Connect Widget, and Nest SDM API.
 - [x] Group active users into 30-person leagues and implement standings reset crons.
-- [ ] Set up continuous integration workflows via GitHub Actions.
+- [x] Integrate Reward Fulfillment APIs (Eden Reforest Projects, Shopify API).
+- [x] Configure Google Cloud Build deployment triggers and launch pipelines.
+- [x] Set up continuous integration workflows via GitHub Actions / Cloud Build.
 
 ## 🛠️ Enhancements & Technical Debt
 
