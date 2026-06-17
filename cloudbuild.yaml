@@ -1,9 +1,9 @@
-# Google Cloud Build pipeline configuration
+# Google Cloud Build pipeline configuration steps:
 steps:
   # 1. Build the API container image
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-api'
-    args: 
+    args:
       - 'build'
       - '-t'
       - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:${COMMIT_SHA}'
@@ -16,7 +16,7 @@ steps:
   # 2. Build the Web Dashboard container image
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-web'
-    args: 
+    args:
       - 'build'
       - '-t'
       - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-web:${COMMIT_SHA}'
@@ -25,6 +25,17 @@ steps:
       - '-f'
       - 'apps/web/Dockerfile'
       - '.'
+
+  # NEW STEP: Push the images immediately so Cloud Run can see them
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-images'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api'
+      - 'push'
+      - '--all-tags'
+      - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-web'
 
   # 3. Deploy the API to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
@@ -61,11 +72,10 @@ substitutions:
   _AR_LOCATION: 'us-central1'
   _AR_REPOSITORY: 'footprint'
 
-#log
 options:
   logging: CLOUD_LOGGING_ONLY
 
-# Push images to Artefact Registry
+# Safe keeping for artifacts tracking
 images:
   - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:${COMMIT_SHA}'
   - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:latest'
