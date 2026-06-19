@@ -22,9 +22,9 @@ This sequence outline defines the immediate execution workflow to optimize Code 
    - [ ] Upgrade JWT storage flow to secure cookie handling.
 
 3. **Step B: Backend & Frontend Refactoring (Code Quality)**
-   - [ ] Extract controllers and services out of `server.ts`.
-   - [ ] Subdivide `App.tsx` into `/components` (e.g., `EcoSphere.tsx`, `ArchetypeForm.tsx`, `Simulator.tsx`, `RewardsHub.tsx`).
-   - [ ] Resolve TypeScript compiler warnings and type any fallback properties.
+   - [x] Extract controllers and services out of `server.ts`.
+   - [x] Subdivide `App.tsx` into `/components` (e.g., `EcoSphere.tsx`, `ArchetypeForm.tsx`, `Simulator.tsx`, `RewardsHub.tsx`).
+   - [x] Resolve TypeScript compiler warnings and type any fallback properties.
 
 4. **Step C: Test Coverage Implementation**
    - [ ] Set up testing frameworks in `apps/web` (Vitest/React Testing Library) and `apps/api` (Supertest).

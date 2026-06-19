@@ -17,21 +17,18 @@ import Radar from 'radar-sdk-js';
 import {
   Leaf,
   Activity,
-  TrendingDown,
-  Home,
-  Car,
-  Utensils,
   Calendar,
   Gift,
   CheckCircle,
-  Zap,
   RefreshCw,
   Plus,
-  Trash2,
-  Database,
   Sparkles
 } from 'lucide-react';
 import './App.css';
+import EcoSphere from './components/EcoSphere';
+import QuickTracker from './components/QuickTracker';
+import Simulator from './components/Simulator';
+import ActivityLogs from './components/ActivityLogs';
 
 const API_BASE = 'http://localhost:3001/api';
 
@@ -99,50 +96,7 @@ async function detectIPLocation(): Promise<AutoLocation> {
   };
 }
 
-// Helper: Reconstruct details description for carbon events
-function getEventDetails(event: CarbonEvent): string {
-  const { category, raw_value, raw_unit, computed_co2e_kg, source_provider } = event;
-  const provider = source_provider as string;
-  if (category === 'transport') {
-    if (provider === 'radar_sdk') {
-      return `Radar GPS trip: ${raw_value} ${raw_unit}`;
-    }
-    if (raw_value > 0) {
-      const factor = computed_co2e_kg / raw_value;
-      if (Math.abs(factor - 0.03) < 0.01) return `Public Transit/Bike (${raw_value} mi)`;
-      if (Math.abs(factor - 0.08) < 0.01) return `Electric EV trip (${raw_value} mi)`;
-      if (Math.abs(factor - 0.18) < 0.02) return `Hybrid Vehicle trip (${raw_value} mi)`;
-      if (Math.abs(factor - 0.3) < 0.02) return `Gas Sedan trip (${raw_value} mi)`;
-      if (Math.abs(factor - 0.45) < 0.05) return `Gas SUV trip (${raw_value} mi)`;
-    }
-    return `Transit commute: ${raw_value} ${raw_unit}`;
-  }
-  if (category === 'food') {
-    if (raw_value > 0) {
-      const factor = computed_co2e_kg / raw_value;
-      if (Math.abs(factor - 0.5) < 0.1) return `Plant-based/Vegan meal (${raw_value} serving${raw_value > 1 ? 's' : ''})`;
-      if (Math.abs(factor - 1.5) < 0.2) return `Balanced/Poultry meal (${raw_value} serving${raw_value > 1 ? 's' : ''})`;
-      if (Math.abs(factor - 3.0) < 0.3) return `Beef/Pork heavy meal (${raw_value} serving${raw_value > 1 ? 's' : ''})`;
-    }
-    return `Dietary intake: ${raw_value} ${raw_unit}`;
-  }
-  if (category === 'housing') {
-    if (provider === 'arcadia') {
-      return `Arcadia Utility billing: ${raw_value} ${raw_unit}`;
-    }
-    if (provider === 'nest') {
-      return `Nest Thermostat Eco check: ${raw_value} ${raw_unit}`;
-    }
-    if (raw_value > 0) {
-      const factor = computed_co2e_kg / raw_value;
-      if (Math.abs(factor - 0.38 * 0.15) < 0.02) return `Solar rooftop grid offset (${raw_value} kWh)`;
-      if (Math.abs(factor - 0.38 * 0.85) < 0.05) return `Smart Nest Thermostat heating (${raw_value} kWh)`;
-      if (Math.abs(factor - 0.38) < 0.05) return `Standard home grid heating (${raw_value} kWh)`;
-    }
-    return `Utility grid usage: ${raw_value} ${raw_unit}`;
-  }
-  return `${category} activity: ${raw_value} ${raw_unit}`;
-}
+// getEventDetails helper function has been moved to components/ActivityLogs.tsx
 
 export default function App() {
   // Authentication & Onboarding State
@@ -212,7 +166,6 @@ export default function App() {
   // Eco-Leagues Leaderboard and Tab state
   const [ecoSphereTab, setEcoSphereTab] = useState<'sphere' | 'league'>('sphere');
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [coachInsights, setCoachInsights] = useState<string[]>([]);
   const [recommendations, setRecommendations] = useState<any[]>([]);
 
@@ -310,7 +263,7 @@ export default function App() {
     const token = localStorage.getItem('footprint_auth_token');
     try {
       if (!token) throw new Error('No auth token found');
-      
+
       const response = await fetch(`${API_BASE}/carbon-events/${eventId}`, {
         method: 'DELETE',
         headers: {
@@ -323,24 +276,24 @@ export default function App() {
       }
 
       const data = await response.json();
-      
+
       // Deduct leaves locally and update level
       if (data.user) {
         setUser(data.user);
       }
-      
+
       // Remove event from state
       setEvents(prev => prev.filter(e => e.id !== eventId));
-      
+
       // Re-fetch user to make sure standings/leaderboards/challenges are synced
       if (user) {
         fetchUser(user.id);
       }
-      
+
       triggerToast(`Carbon event deleted. -${data.leavesDeducted} Leaves deducted.`, 'success');
     } catch (err) {
       console.warn('API error during deletion. Simulating deletion locally.');
-      
+
       // Find the event in our local state to determine category and values
       const eventToDelete = events.find(e => e.id === eventId);
       if (!eventToDelete) {
@@ -348,11 +301,11 @@ export default function App() {
         setLoading(false);
         return;
       }
-      
+
       // Calculate how many leaves should be deducted locally
       let leavesDeducted = 15;
       const { category, raw_value, computed_co2e_kg } = eventToDelete;
-      
+
       if (category === 'transport') {
         if (raw_value > 0) {
           const factor = computed_co2e_kg / raw_value;
@@ -375,7 +328,7 @@ export default function App() {
           }
         }
       }
-      
+
       if (user) {
         const newLeaves = Math.max(0, user.total_leaves - leavesDeducted);
         const newLevel = calculateLevel(newLeaves);
@@ -385,14 +338,14 @@ export default function App() {
           current_level: newLevel
         };
         setUser(updatedUser);
-        
+
         // Update leaderboard
         setLeaderboard(prev => {
           const updated = prev.map(m => m.userId === user.id ? { ...m, leaves: newLeaves, level: newLevel } : m);
           return [...updated].sort((a, b) => b.leaves - a.leaves);
         });
       }
-      
+
       // Remove event from state
       setEvents(prev => prev.filter(e => e.id !== eventId));
       triggerToast(`Local Mode: Carbon event deleted. -${leavesDeducted} Leaves deducted.`, 'info');
@@ -496,7 +449,7 @@ export default function App() {
       { id: 'user-id', userId, username: displayName || 'Eco Champion', leaves: mockUser.total_leaves, level: mockUser.current_level, isMock: false },
       ...Array.from({ length: 29 }, (_, idx) => {
         const names = [
-          'Ivy Green', 'Moss Ranger', 'Fern Forest', 'Pine Seedling', 'Sage Leaf', 
+          'Ivy Green', 'Moss Ranger', 'Fern Forest', 'Pine Seedling', 'Sage Leaf',
           'Willow Branch', 'Cedar Sprout', 'Olive Grove', 'Emerald Spark', 'Hazel Nut',
           'Forest Shade', 'Meadow Grass', 'Clover Patch', 'Bamboo Stem', 'Laurel Wreath',
           'Birch Bark', 'Maple Syrup', 'Oak Acorn', 'Heather Bloom', 'Lily Pad',
@@ -799,7 +752,7 @@ export default function App() {
     if (cleanCode) {
       const config = COUNTRY_CONFIGS[country];
       const localRegex = new RegExp(config.pattern);
-      
+
       // Local sanity check on pattern first
       if (!localRegex.test(cleanCode)) {
         triggerToast(`Please enter a valid postal code format for ${config.name}.`, 'error');
@@ -838,7 +791,7 @@ export default function App() {
           setLoading(false);
           return;
         }
-        
+
       } catch (err) {
         console.warn('External postal code verification API failed. Falling back to local pattern check.', err);
         // Robust fallback: if API fails (network offline), we trust the regex format match
@@ -899,7 +852,7 @@ export default function App() {
       const token = localStorage.getItem('footprint_auth_token');
       const response = await fetch(`${API_BASE}/carbon-events`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
@@ -974,7 +927,7 @@ export default function App() {
       const token = localStorage.getItem('footprint_auth_token');
       const response = await fetch(`${API_BASE}/challenges/progress`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
@@ -1064,7 +1017,7 @@ export default function App() {
       const token = localStorage.getItem('footprint_auth_token');
       const response = await fetch(`${API_BASE}/sponsors/redeem`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
@@ -1140,7 +1093,7 @@ export default function App() {
   const triggerRadarWebhook = async () => {
     if (!user) return;
     setLoading(true);
-    
+
     try {
       // Call Radar.io SDK to track coordinates via Promise
       const trackRes = await Radar.trackOnce();
@@ -1204,7 +1157,7 @@ export default function App() {
   // Trigger Arcadia Connect Widget & Callback
   const triggerArcadiaWebhook = async () => {
     if (!user) return;
-    
+
     // Launch Arcadia Connect Widget if loaded
     if ((window as any).ArcadiaConnect) {
       const connect = new (window as any).ArcadiaConnect({
@@ -1215,7 +1168,7 @@ export default function App() {
             const token = localStorage.getItem('footprint_auth_token');
             const res = await fetch(`${API_BASE}/integrations/arcadia/callback`, {
               method: 'POST',
-              headers: { 
+              headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
               },
@@ -1223,7 +1176,7 @@ export default function App() {
             });
             if (res.ok) {
               triggerToast('Utility Account linked successfully via Arcadia Connect widget!', 'success');
-              
+
               // Trigger utility webhook ingestion
               await fetch(`${API_BASE}/webhooks/arcadia`, {
                 method: 'POST',
@@ -1363,110 +1316,7 @@ export default function App() {
   const baselineTons = baseline ? parseFloat((baseline.total / 1000).toFixed(1)) : 15.0;
   const targetTons = parseFloat((baselineTons * 0.65).toFixed(1));
   const simReduction = parseFloat((baselineTons - simFootprint.total).toFixed(1));
-
-  const filteredEvents = events.filter(e => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    const details = getEventDetails(e).toLowerCase();
-    const source = e.source_provider.toLowerCase();
-    const category = e.category.toLowerCase();
-    return details.includes(query) || source.includes(query) || category.includes(query);
-  });
-
-  // Visual Eco-Sphere SVG renderer
-  const renderEcoSphere = () => {
-    const level = user ? user.current_level : 1;
-
-    // Draw different SVG components depending on user level
-    return (
-      <svg className="ecosphere-svg" viewBox="0 0 100 100">
-        <defs>
-          <radialGradient id="sphereGrad" cx="50%" cy="50%" r="50%" fx="30%" fy="30%">
-            <stop offset="0%" stopColor="hsl(150, 90%, 65%)" stopOpacity="0.4" />
-            <stop offset="70%" stopColor="hsl(142, 70%, 25%)" stopOpacity="0.1" />
-            <stop offset="100%" stopColor="hsl(224, 45%, 8%)" stopOpacity="0" />
-          </radialGradient>
-          <linearGradient id="trunkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="hsl(34, 25%, 35%)" />
-            <stop offset="100%" stopColor="hsl(34, 25%, 20%)" />
-          </linearGradient>
-          <linearGradient id="leafGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="hsl(150, 90%, 60%)" />
-            <stop offset="100%" stopColor="hsl(142, 70%, 35%)" />
-          </linearGradient>
-        </defs>
-
-        {/* Global glowing glass background dome */}
-        <circle cx="50" cy="50" r="45" fill="url(#sphereGrad)" stroke="hsla(150, 90%, 60%, 0.15)" strokeWidth="0.5" />
-
-        {/* Core Habitat Base (soil) */}
-        <path d="M 15 75 Q 50 65 85 75 Q 85 85 85 85 Q 50 90 15 85 Z" fill="hsl(34, 25%, 22%)" opacity="0.9" />
-        <path d="M 20 74 Q 50 68 80 74" stroke="hsl(142, 60%, 30%)" strokeWidth="1.5" fill="none" />
-
-        {/* Level 1 Sprout */}
-        {level >= 1 && (
-          <>
-            {/* Trunk */}
-            <path d="M 49 75 Q 49 60 51 55" stroke="url(#trunkGrad)" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-            {/* Leaf 1 */}
-            <path d="M 51 55 Q 56 48 51 44 Q 46 48 51 55" fill="url(#leafGrad)" />
-          </>
-        )}
-
-        {/* Level 2 Sapling addition */}
-        {level >= 2 && (
-          <>
-            {/* Left Branch */}
-            <path d="M 50 65 Q 42 58 38 56" stroke="url(#trunkGrad)" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-            {/* Left Leaf */}
-            <path d="M 38 56 Q 32 54 33 49 Q 39 51 38 56" fill="url(#leafGrad)" />
-          </>
-        )}
-
-        {/* Level 3 Crown growth addition */}
-        {level >= 3 && (
-          <>
-            {/* Right Branch */}
-            <path d="M 50 62 Q 58 55 64 53" stroke="url(#trunkGrad)" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-            {/* Right Leaf */}
-            <path d="M 64 53 Q 70 51 71 46 Q 65 48 64 53" fill="url(#leafGrad)" />
-            {/* Center Bush Top */}
-            <circle cx="50" cy="42" r="6" fill="url(#leafGrad)" opacity="0.85" />
-          </>
-        )}
-
-        {/* Level 4 Full bloom flowers & extra density */}
-        {level >= 4 && (
-          <>
-            <circle cx="43" cy="48" r="5" fill="url(#leafGrad)" opacity="0.9" />
-            <circle cx="58" cy="46" r="5" fill="url(#leafGrad)" opacity="0.9" />
-            {/* Flowers */}
-            <circle cx="50" cy="42" r="1.5" fill="hsl(346, 84%, 61%)" />
-            <circle cx="38" cy="56" r="1.2" fill="hsl(45, 100%, 50%)" />
-            <circle cx="64" cy="53" r="1.2" fill="hsl(45, 100%, 50%)" />
-          </>
-        )}
-
-        {/* Level 5+ Silver Birch growth addition */}
-        {level >= 5 && (
-          <>
-            {/* Second Tree trunk (Silver Birch) */}
-            <path d="M 68 75 Q 67 60 70 48" stroke="hsl(210, 40%, 90%)" strokeWidth="2" strokeLinecap="round" fill="none" />
-            {/* Birch branch */}
-            <path d="M 69 60 Q 75 54 78 52" stroke="hsl(210, 40%, 90%)" strokeWidth="1" strokeLinecap="round" fill="none" />
-            {/* Birch leaves */}
-            <path d="M 78 52 Q 83 50 82 46 Q 77 48 78 52" fill="hsl(150, 90%, 65%)" />
-            <path d="M 70 48 Q 72 40 68 36 Q 65 40 70 48" fill="hsl(150, 90%, 65%)" />
-
-            {/* Floating glowing leaf particles */}
-            <circle cx="30" cy="40" r="0.8" fill="var(--accent)" className="glow-leaves" />
-            <circle cx="68" cy="30" r="0.8" fill="var(--leaves-xp)" className="glow-leaves" />
-            <circle cx="52" cy="32" r="0.6" fill="var(--accent)" className="glow-leaves" />
-          </>
-        )}
-      </svg>
-    );
-  };
+  // filteredEvents and renderEcoSphere have been moved to subcomponents.
 
   // Group historical events for chart visualization
   const getChartDataPoints = () => {
@@ -1947,95 +1797,142 @@ export default function App() {
           </div>
 
           {/* Interactive Life Swap Simulator */}
-          <div className="panel-card glass-panel">
-            <h2 className="panel-title"><TrendingDown size={20} color="var(--accent)" /> Life Swap Simulator</h2>
+          <Simulator
+            simHousing={simHousing}
+            setSimHousing={setSimHousing}
+            simTransport={simTransport}
+            setSimTransport={setSimTransport}
+            simDiet={simDiet}
+            setSimDiet={setSimDiet}
+            housingImpact={simFootprint.housing}
+            transportImpact={simFootprint.transport}
+            foodImpact={simFootprint.food}
+          />
 
-            <div className="simulator-group">
-              <div className="simulator-label">
-                <span className="simulator-title">Housing Grid & Thermostat</span>
-                <span className="simulator-impact">{simFootprint.housing} Tons/Yr</span>
-              </div>
-              <div className="simulator-options-row">
-                <button
-                  className={`simulator-option-btn ${simHousing === 'standard' ? 'active' : ''}`}
-                  onClick={() => setSimHousing('standard')}
+          {/* AI Climate Coach & Recommendations Card */}
+          <div className="panel-card glass-panel" style={{ background: 'linear-gradient(135deg, hsla(142, 70%, 45%, 0.1) 0%, hsla(224, 45%, 12%, 0.85) 100%)', border: '1px solid rgba(16, 185, 129, 0.25)', marginBottom: '4px' }}>
+            <h2 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Sparkles size={20} color="var(--primary)" /> AI Climate Coach
+            </h2>
+
+            {/* Insights Section */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+              {coachInsights.map((insight, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    borderLeft: '3px solid var(--primary)',
+                    padding: '10px 14px',
+                    borderRadius: '0 8px 8px 0',
+                    fontSize: '13px',
+                    color: 'var(--text-muted)',
+                    lineHeight: '1.4',
+                    textAlign: 'left'
+                  }}
                 >
-                  <Home size={14} /> Standard Grid
-                </button>
-                <button
-                  className={`simulator-option-btn ${simHousing === 'smart_thermostat' ? 'active' : ''}`}
-                  onClick={() => setSimHousing('smart_thermostat')}
-                >
-                  <Zap size={14} /> Smart Nest
-                </button>
-                <button
-                  className={`simulator-option-btn ${simHousing === 'solar' ? 'active' : ''}`}
-                  onClick={() => setSimHousing('solar')}
-                >
-                  <Leaf size={14} /> Solar Roof
-                </button>
-              </div>
+                  {insight}
+                </div>
+              ))}
             </div>
 
-            <div className="simulator-group">
-              <div className="simulator-label">
-                <span className="simulator-title">Transport & Travel Mode</span>
-                <span className="simulator-impact">{simFootprint.transport} Tons/Yr</span>
-              </div>
-              <div className="simulator-options-row">
-                <button
-                  className={`simulator-option-btn ${simTransport === 'suv' ? 'active' : ''}`}
-                  onClick={() => setSimTransport('suv')}
-                >
-                  <Car size={14} /> Drive SUV
-                </button>
-                <button
-                  className={`simulator-option-btn ${simTransport === 'gas_car' ? 'active' : ''}`}
-                  onClick={() => setSimTransport('gas_car')}
-                >
-                  <Car size={14} /> Sedan
-                </button>
-                <button
-                  className={`simulator-option-btn ${simTransport === 'hybrid' ? 'active' : ''}`}
-                  onClick={() => setSimTransport('hybrid')}
-                >
-                  <Zap size={14} /> Hybrid/EV
-                </button>
-                <button
-                  className={`simulator-option-btn ${simTransport === 'transit' ? 'active' : ''}`}
-                  onClick={() => setSimTransport('transit')}
-                >
-                  <Activity size={14} /> Bike/Transit
-                </button>
-              </div>
-            </div>
+            {/* Recommendations Section */}
+            {recommendations.length > 0 && (
+              <div>
+                <span className="simulator-title" style={{ fontSize: '11px', display: 'block', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)' }}>
+                  Recommended Micro-Actions
+                </span>
 
-            <div className="simulator-group">
-              <div className="simulator-label">
-                <span className="simulator-title">Dietary Choices</span>
-                <span className="simulator-impact">{simFootprint.food} Tons/Yr</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {recommendations.map(rec => {
+                    let badgeBg = 'rgba(255,255,255,0.05)';
+                    let badgeColor = 'var(--text-muted)';
+
+                    if (rec.category === 'housing') {
+                      badgeBg = 'rgba(16, 185, 129, 0.1)';
+                      badgeColor = 'hsl(150, 90%, 65%)';
+                    } else if (rec.category === 'transport') {
+                      badgeBg = 'rgba(59, 130, 246, 0.1)';
+                      badgeColor = 'hsl(217, 91%, 65%)';
+                    } else if (rec.category === 'food') {
+                      badgeBg = 'rgba(251, 191, 36, 0.1)';
+                      badgeColor = 'hsl(45, 100%, 55%)';
+                    }
+
+                    return (
+                      <div
+                        key={rec.id}
+                        style={{
+                          background: 'rgba(0, 0, 0, 0.2)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '10px',
+                          padding: '14px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                          textAlign: 'left',
+                          transition: 'all 0.2s ease'
+                        }}
+                        className="rec-action-card"
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                          <div>
+                            <strong style={{ fontSize: '14px', color: 'var(--text-main)', display: 'block' }}>
+                              {rec.title}
+                            </strong>
+                            <span style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginTop: '3px' }}>
+                              {rec.description}
+                            </span>
+                          </div>
+
+                          <span style={{
+                            fontSize: '10px',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: badgeBg,
+                            color: badgeColor,
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            flexShrink: 0
+                          }}>
+                            {rec.category}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 600 }}>
+                              🍃 Avoids {rec.impactKg} kg CO2e
+                            </span>
+                            <span style={{ fontSize: '11px', color: 'var(--leaves-xp)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              +{rec.rewardLeaves} <Leaf size={12} fill="var(--leaves-xp)" style={{ display: 'inline' }} />
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: '12px',
+                              borderRadius: '6px',
+                              width: 'auto',
+                              margin: 0,
+                              background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)',
+                              boxShadow: 'none'
+                            }}
+                            onClick={() => triggerQuickLog(rec.category, rec.type, rec.value, rec.unit)}
+                            disabled={loading}
+                          >
+                            Log Action
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="simulator-options-row">
-                <button
-                  className={`simulator-option-btn ${simDiet === 'meat' ? 'active' : ''}`}
-                  onClick={() => setSimDiet('meat')}
-                >
-                  <Utensils size={14} /> Meat Heavy
-                </button>
-                <button
-                  className={`simulator-option-btn ${simDiet === 'balanced' ? 'active' : ''}`}
-                  onClick={() => setSimDiet('balanced')}
-                >
-                  <Utensils size={14} /> Poultry/Flex
-                </button>
-                <button
-                  className={`simulator-option-btn ${simDiet === 'vegan' ? 'active' : ''}`}
-                  onClick={() => setSimDiet('vegan')}
-                >
-                  <Utensils size={14} /> Vegan Swap
-                </button>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Historical Trend Chart */}
@@ -2087,115 +1984,117 @@ export default function App() {
             </div>
 
             {chartData.length > 0 ? (
-              <div className="chart-container">
-                <svg className="chart-svg" viewBox="0 0 400 200">
-                  <defs>
-                    <linearGradient id="chartGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.4" />
-                      <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.0" />
-                    </linearGradient>
-                    <linearGradient id="housingGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="hsl(150, 90%, 60%)" />
-                      <stop offset="100%" stopColor="hsl(142, 70%, 40%)" />
-                    </linearGradient>
-                    <linearGradient id="transportGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="hsl(217, 91%, 65%)" />
-                      <stop offset="100%" stopColor="hsl(224, 80%, 50%)" />
-                    </linearGradient>
-                    <linearGradient id="foodGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="hsl(45, 100%, 55%)" />
-                      <stop offset="100%" stopColor="hsl(34, 97%, 45%)" />
-                    </linearGradient>
-                  </defs>
+              <div>
+                <div className="chart-container">
+                  <svg className="chart-svg" viewBox="0 0 400 200">
+                    <defs>
+                      <linearGradient id="chartGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.4" />
+                        <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.0" />
+                      </linearGradient>
+                      <linearGradient id="housingGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="hsl(150, 90%, 60%)" />
+                        <stop offset="100%" stopColor="hsl(142, 70%, 40%)" />
+                      </linearGradient>
+                      <linearGradient id="transportGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="hsl(217, 91%, 65%)" />
+                        <stop offset="100%" stopColor="hsl(224, 80%, 50%)" />
+                      </linearGradient>
+                      <linearGradient id="foodGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="hsl(45, 100%, 55%)" />
+                        <stop offset="100%" stopColor="hsl(34, 97%, 45%)" />
+                      </linearGradient>
+                    </defs>
 
-                  {/* Grid Lines */}
-                  <line x1="40" y1="20" x2="380" y2="20" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="4" />
-                  <line x1="40" y1="80" x2="380" y2="80" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="4" />
-                  <line x1="40" y1="140" x2="380" y2="140" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="4" />
+                    {/* Grid Lines */}
+                    <line x1="40" y1="20" x2="380" y2="20" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="4" />
+                    <line x1="40" y1="80" x2="380" y2="80" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="4" />
+                    <line x1="40" y1="140" x2="380" y2="140" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="4" />
 
-                  {/* Chart Rendering */}
-                  {chartViewMode === 'total' ? (
-                    (() => {
-                      const maxVal = Math.max(...chartData.map(d => d.total), 1);
-                      const coords = chartData.map((d, index) => {
-                        const x = 40 + (index / (chartData.length - 1 || 1)) * 340;
-                        const y = 170 - (d.total / maxVal) * 140;
-                        return { x, y, label: d.label, val: d.total };
-                      });
+                    {/* Chart Rendering */}
+                    {chartViewMode === 'total' ? (
+                      (() => {
+                        const maxVal = Math.max(...chartData.map(d => d.total), 1);
+                        const coords = chartData.map((d, index) => {
+                          const x = 40 + (index / (chartData.length - 1 || 1)) * 340;
+                          const y = 170 - (d.total / maxVal) * 140;
+                          return { x, y, label: d.label, val: d.total };
+                        });
 
-                      const pathD = coords.reduce((acc, c, i) => i === 0 ? `M ${c.x} ${c.y}` : `${acc} L ${c.x} ${c.y}`, '');
-                      const areaD = coords.length > 0
-                        ? `${pathD} L ${coords[coords.length - 1].x} 170 L ${coords[0].x} 170 Z`
-                        : '';
-
-                      return (
-                        <>
-                          {/* Shaded Area */}
-                          {areaD && <path d={areaD} fill="url(#chartGrad)" />}
-                          {/* Connected Line */}
-                          {pathD && <path d={pathD} fill="none" stroke="var(--primary)" strokeWidth="2.5" />}
-
-                          {/* Points */}
-                          {coords.map((c, i) => (
-                            <g key={i}>
-                              <circle cx={c.x} cy={c.y} r="4" fill="var(--accent)" stroke="var(--bg-dark)" strokeWidth="1.5" />
-                              <text x={c.x} y={c.y - 10} fill="var(--text-main)" fontSize="8" textAnchor="middle" fontWeight="600">
-                                {Math.round(c.val)} kg
-                              </text>
-                              <text x={c.x} y="190" fill="var(--text-dim)" fontSize="10" textAnchor="middle">
-                                {c.label}
-                              </text>
-                            </g>
-                          ))}
-                        </>
-                      );
-                    })()
-                  ) : (
-                    // Stacked Bar Chart breakdown
-                    (() => {
-                      const maxVal = Math.max(...chartData.map(d => d.total), 1);
-                      return chartData.map((d, index) => {
-                        const cX = 40 + (index / (chartData.length - 1 || 1)) * 340;
-                        const barWidth = 20;
-
-                        const hHousing = (d.housing / maxVal) * 140;
-                        const hTransport = (d.transport / maxVal) * 140;
-                        const hFood = (d.food / maxVal) * 140;
-
-                        const yHousing = 170 - hHousing;
-                        const yTransport = yHousing - hTransport;
-                        const yFood = yTransport - hFood;
+                        const pathD = coords.reduce((acc, c, i) => i === 0 ? `M ${c.x} ${c.y}` : `${acc} L ${c.x} ${c.y}`, '');
+                        const areaD = coords.length > 0
+                          ? `${pathD} L ${coords[coords.length - 1].x} 170 L ${coords[0].x} 170 Z`
+                          : '';
 
                         return (
-                          <g key={index}>
-                            {/* Housing Segment */}
-                            {hHousing > 0 && (
-                              <rect x={cX - barWidth/2} y={yHousing} width={barWidth} height={hHousing} fill="url(#housingGrad)" rx="1.5" />
-                            )}
-                            {/* Transport Segment */}
-                            {hTransport > 0 && (
-                              <rect x={cX - barWidth/2} y={yTransport} width={barWidth} height={hTransport} fill="url(#transportGrad)" rx="1.5" />
-                            )}
-                            {/* Food Segment */}
-                            {hFood > 0 && (
-                              <rect x={cX - barWidth/2} y={yFood} width={barWidth} height={hFood} fill="url(#foodGrad)" rx="1.5" />
-                            )}
-                            {/* Total Value text */}
-                            <text x={cX} y={yFood - 8} fill="var(--text-main)" fontSize="8" textAnchor="middle" fontWeight="600">
-                              {Math.round(d.total)} kg
-                            </text>
-                            {/* Month Label */}
-                            <text x={cX} y="190" fill="var(--text-dim)" fontSize="10" textAnchor="middle">
-                              {d.label}
-                            </text>
-                          </g>
-                        );
-                      });
-                    })()
-                  )}
+                          <>
+                            {/* Shaded Area */}
+                            {areaD && <path d={areaD} fill="url(#chartGrad)" />}
+                            {/* Connected Line */}
+                            {pathD && <path d={pathD} fill="none" stroke="var(--primary)" strokeWidth="2.5" />}
 
-                  <line x1="40" y1="170" x2="380" y2="170" stroke="var(--border-color)" strokeWidth="1" />
-                </svg>
+                            {/* Points */}
+                            {coords.map((c, i) => (
+                              <g key={i}>
+                                <circle cx={c.x} cy={c.y} r="4" fill="var(--accent)" stroke="var(--bg-dark)" strokeWidth="1.5" />
+                                <text x={c.x} y={c.y - 10} fill="var(--text-main)" fontSize="8" textAnchor="middle" fontWeight="600">
+                                  {Math.round(c.val)} kg
+                                </text>
+                                <text x={c.x} y="190" fill="var(--text-dim)" fontSize="10" textAnchor="middle">
+                                  {c.label}
+                                </text>
+                              </g>
+                            ))}
+                          </>
+                        );
+                      })()
+                    ) : (
+                      // Stacked Bar Chart breakdown
+                      (() => {
+                        const maxVal = Math.max(...chartData.map(d => d.total), 1);
+                        return chartData.map((d, index) => {
+                          const cX = 40 + (index / (chartData.length - 1 || 1)) * 340;
+                          const barWidth = 20;
+
+                          const hHousing = (d.housing / maxVal) * 140;
+                          const hTransport = (d.transport / maxVal) * 140;
+                          const hFood = (d.food / maxVal) * 140;
+
+                          const yHousing = 170 - hHousing;
+                          const yTransport = yHousing - hTransport;
+                          const yFood = yTransport - hFood;
+
+                          return (
+                            <g key={index}>
+                              {/* Housing Segment */}
+                              {hHousing > 0 && (
+                                <rect x={cX - barWidth / 2} y={yHousing} width={barWidth} height={hHousing} fill="url(#housingGrad)" rx="1.5" />
+                              )}
+                              {/* Transport Segment */}
+                              {hTransport > 0 && (
+                                <rect x={cX - barWidth / 2} y={yTransport} width={barWidth} height={hTransport} fill="url(#transportGrad)" rx="1.5" />
+                              )}
+                              {/* Food Segment */}
+                              {hFood > 0 && (
+                                <rect x={cX - barWidth / 2} y={yFood} width={barWidth} height={hFood} fill="url(#foodGrad)" rx="1.5" />
+                              )}
+                              {/* Total Value text */}
+                              <text x={cX} y={yFood - 8} fill="var(--text-main)" fontSize="8" textAnchor="middle" fontWeight="600">
+                                {Math.round(d.total)} kg
+                              </text>
+                              {/* Month Label */}
+                              <text x={cX} y="190" fill="var(--text-dim)" fontSize="10" textAnchor="middle">
+                                {d.label}
+                              </text>
+                            </g>
+                          );
+                        });
+                      })()
+                    )}
+
+                    <line x1="40" y1="170" x2="380" y2="170" stroke="var(--border-color)" strokeWidth="1" />
+                  </svg>
+                </div>
 
                 {/* Legend for breakdown */}
                 {chartViewMode === 'breakdown' && (
@@ -2236,263 +2135,7 @@ export default function App() {
             )}
           </div>
 
-          {/* Recent Activity & Footprint Logs Panel */}
-          <div className="panel-card glass-panel">
-            <h2 className="panel-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Database size={20} color="var(--primary)" /> Footprint Activity Logs
-              </span>
-              <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontWeight: 'normal' }}>
-                {events.length} total logs
-              </span>
-            </h2>
-            
-            {/* Search Filter */}
-            <div style={{ marginBottom: '16px' }}>
-              <input
-                type="text"
-                placeholder="Search logs by category or details..."
-                className="input-field"
-                style={{ padding: '8px 12px', fontSize: '13px' }}
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-            </div>
 
-            {filteredEvents.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
-                {filteredEvents.map(e => {
-                  const details = getEventDetails(e);
-                  const dateStr = new Date(e.timestamp).toLocaleDateString('default', {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  });
-                  
-                  // Category emoji & colors
-                  let categoryEmoji = '🌱';
-                  let badgeBg = 'rgba(255,255,255,0.05)';
-                  let badgeColor = 'var(--text-muted)';
-                  
-                  if (e.category === 'housing') {
-                    categoryEmoji = '🏠';
-                    badgeBg = 'rgba(16, 185, 129, 0.1)';
-                    badgeColor = 'hsl(150, 90%, 65%)';
-                  } else if (e.category === 'transport') {
-                    categoryEmoji = '🚗';
-                    badgeBg = 'rgba(59, 130, 246, 0.1)';
-                    badgeColor = 'hsl(217, 91%, 65%)';
-                  } else if (e.category === 'food') {
-                    categoryEmoji = '🥗';
-                    badgeBg = 'rgba(251, 191, 36, 0.1)';
-                    badgeColor = 'hsl(45, 100%, 55%)';
-                  }
-
-                  return (
-                    <div
-                      key={e.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '12px',
-                        background: 'rgba(255, 255, 255, 0.02)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        gap: '12px',
-                        transition: 'all 0.2s ease'
-                      }}
-                      className="activity-item-row"
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
-                        <span style={{ fontSize: '20px', flexShrink: 0 }}>{categoryEmoji}</span>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-main)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                              {details}
-                            </span>
-                            <span style={{
-                              fontSize: '9px',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              background: badgeBg,
-                              color: badgeColor,
-                              fontWeight: 700,
-                              textTransform: 'uppercase'
-                            }}>
-                              {e.source_provider}
-                            </span>
-                          </div>
-                          <span style={{ fontSize: '11px', color: 'var(--text-dim)', display: 'block', marginTop: '2px' }}>
-                            {dateStr}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
-                        <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-main)' }}>
-                          {Math.round(e.computed_co2e_kg)} kg CO2e
-                        </span>
-                        
-                        <button
-                          type="button"
-                          onClick={() => deleteCarbonEvent(e.id)}
-                          style={{
-                            background: 'rgba(239, 68, 68, 0.1)',
-                            border: 'none',
-                            color: '#ef4444',
-                            cursor: 'pointer',
-                            padding: '6px',
-                            borderRadius: '6px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            transition: 'all 0.2s ease',
-                          }}
-                          className="delete-activity-btn"
-                          title="Delete activity log"
-                          disabled={loading}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)', fontSize: '13px' }}>
-                No activities match your search.
-              </div>
-            )}
-          </div>
-
-          {/* AI Climate Coach & Recommendations Card */}
-          <div className="panel-card glass-panel" style={{ background: 'rgba(16, 185, 129, 0.03)', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
-            <h2 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sparkles size={20} color="var(--primary)" /> AI Climate Coach
-            </h2>
-            
-            {/* Insights Section */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-              {coachInsights.map((insight, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.02)',
-                    borderLeft: '3px solid var(--primary)',
-                    padding: '10px 14px',
-                    borderRadius: '0 8px 8px 0',
-                    fontSize: '13px',
-                    color: 'var(--text-muted)',
-                    lineHeight: '1.4',
-                    textAlign: 'left'
-                  }}
-                >
-                  {insight}
-                </div>
-              ))}
-            </div>
-
-            {/* Recommendations Section */}
-            {recommendations.length > 0 && (
-              <div>
-                <span className="simulator-title" style={{ fontSize: '11px', display: 'block', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)' }}>
-                  Recommended Micro-Actions
-                </span>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {recommendations.map(rec => {
-                    let badgeBg = 'rgba(255,255,255,0.05)';
-                    let badgeColor = 'var(--text-muted)';
-                    
-                    if (rec.category === 'housing') {
-                      badgeBg = 'rgba(16, 185, 129, 0.1)';
-                      badgeColor = 'hsl(150, 90%, 65%)';
-                    } else if (rec.category === 'transport') {
-                      badgeBg = 'rgba(59, 130, 246, 0.1)';
-                      badgeColor = 'hsl(217, 91%, 65%)';
-                    } else if (rec.category === 'food') {
-                      badgeBg = 'rgba(251, 191, 36, 0.1)';
-                      badgeColor = 'hsl(45, 100%, 55%)';
-                    }
-
-                    return (
-                      <div
-                        key={rec.id}
-                        style={{
-                          background: 'rgba(0, 0, 0, 0.2)',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '10px',
-                          padding: '14px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '10px',
-                          textAlign: 'left',
-                          transition: 'all 0.2s ease'
-                        }}
-                        className="rec-action-card"
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
-                          <div>
-                            <strong style={{ fontSize: '14px', color: 'var(--text-main)', display: 'block' }}>
-                              {rec.title}
-                            </strong>
-                            <span style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginTop: '3px' }}>
-                              {rec.description}
-                            </span>
-                          </div>
-                          
-                          <span style={{
-                            fontSize: '10px',
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            background: badgeBg,
-                            color: badgeColor,
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            flexShrink: 0
-                          }}>
-                            {rec.category}
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 600 }}>
-                              🍃 Avoids {rec.impactKg} kg CO2e
-                            </span>
-                            <span style={{ fontSize: '11px', color: 'var(--leaves-xp)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
-                              +{rec.rewardLeaves} <Leaf size={12} fill="var(--leaves-xp)" style={{ display: 'inline' }} />
-                            </span>
-                          </div>
-
-                          <button
-                            type="button"
-                            className="btn-primary"
-                            style={{
-                              padding: '6px 12px',
-                              fontSize: '12px',
-                              borderRadius: '6px',
-                              width: 'auto',
-                              margin: 0,
-                              background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)',
-                              boxShadow: 'none'
-                            }}
-                            onClick={() => triggerQuickLog(rec.category, rec.type, rec.value, rec.unit)}
-                            disabled={loading}
-                          >
-                            Log Action
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* Smart Telemetry Simulator Webhooks Card */}
           <div className="panel-card glass-panel">
@@ -2653,7 +2296,7 @@ export default function App() {
             {ecoSphereTab === 'sphere' ? (
               <div style={{ textAlign: 'center' }}>
                 <div className="ecosphere-widget">
-                  {renderEcoSphere()}
+                  <EcoSphere level={user.current_level} />
                   <div className="ecosphere-label">Eco-Sphere Level {user.current_level}</div>
                 </div>
 
@@ -2711,6 +2354,77 @@ export default function App() {
             )}
           </div>
 
+          {/* Quick Action Tracker Panel */}
+          <QuickTracker triggerQuickLog={triggerQuickLog} loading={loading} />
+
+          {/* B-Corp Rewards & Sponsor Integrations */}
+          <div className="panel-card glass-panel">
+            <h2 className="panel-title"><Gift size={20} color="var(--warning)" /> Sponsor Rewards Hub</h2>
+
+            <div className="sponsor-banner">
+              <div className="sponsor-logo arcadia">ARCADIA</div>
+              <div className="sponsor-info">
+                <div className="sponsor-title">Smart Energy Plug</div>
+                <div className="sponsor-text">Link utility account and receive a free smart power plug. (Cost: 1500 Leaves)</div>
+              </div>
+              <button
+                className="sponsor-btn"
+                onClick={() => redeemVoucher('Arcadia Energy', 'plug', 1500)}
+              >
+                Claim
+              </button>
+            </div>
+
+            <div className="sponsor-banner oatly" style={{ marginTop: '12px' }}>
+              <div className="sponsor-logo oatly">OATLY</div>
+              <div className="sponsor-info">
+                <div className="sponsor-title">15% Brand Voucher</div>
+                <div className="sponsor-text">Claim a 15% barcode discount for milk-substitutes. (Cost: 500 Leaves)</div>
+              </div>
+              <button
+                className="sponsor-btn"
+                onClick={() => redeemVoucher('Oatly', 'discount', 500)}
+              >
+                Claim
+              </button>
+            </div>
+
+            <div className="sponsor-banner" style={{ marginTop: '12px', background: 'linear-gradient(135deg, hsla(142, 70%, 45%, 0.15) 0%, hsla(150, 90%, 60%, 0.05) 100%)', borderColor: 'var(--primary)' }}>
+              <div className="sponsor-logo" style={{ background: 'var(--primary)', color: 'white' }}>EDEN</div>
+              <div className="sponsor-info">
+                <div className="sponsor-title">Plant 1 Physical Tree</div>
+                <div className="sponsor-text">Eden Projects plants one real tree funded by B-Corp escrow. (Cost: 100 Leaves)</div>
+              </div>
+              <button
+                className="sponsor-btn"
+                onClick={() => redeemVoucher('Eden Projects', 'tree', 100)}
+              >
+                Fund Tree
+              </button>
+            </div>
+
+            {/* Redeemed Vouchers list */}
+            {vouchers.length > 0 && (
+              <div style={{ marginTop: '20px' }}>
+                <span className="simulator-title" style={{ fontSize: '12px', display: 'block', marginBottom: '8px' }}>Your Redeemed Rewards</span>
+                <div className="vouchers-list">
+                  {vouchers.map(v => (
+                    <div key={v.id} className="voucher-item">
+                      <div className="voucher-header">
+                        <span className="voucher-title">{v.title}</span>
+                        {v.couponCode && <span className="voucher-code">{v.couponCode}</span>}
+                      </div>
+                      <div className="voucher-desc">{v.description}</div>
+                      {v.rewardType === 'discount' && (
+                        <div className="barcode-visual" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Active 7-Day Challenges */}
           <div className="panel-card glass-panel">
             <h2 className="panel-title"><Calendar size={20} color="var(--primary)" /> Habit Challenges</h2>
@@ -2751,132 +2465,8 @@ export default function App() {
             ))}
           </div>
 
-          {/* Quick Action Tracker Panel */}
-          <div className="panel-card glass-panel" style={{ background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.15)' }}>
-            <h2 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <Zap size={20} color="var(--accent)" /> 1-Click Quick Tracker
-            </h2>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-              Log common green habits instantly to track reductions and earn bonus Leaves.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <button
-                type="button"
-                className="btn-primary"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '12px 16px',
-                  borderRadius: '10px',
-                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.2) 100%)',
-                  border: '1px solid rgba(16, 185, 129, 0.3)',
-                  color: 'var(--text-main)',
-                  fontWeight: 600,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  width: '100%'
-                }}
-                onClick={() => triggerQuickLog('food', 'vegan', 1, 'meals')}
-                disabled={loading}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '18px' }}>🥗</span> Log Plant-Based Meal
-                </span>
-                <span style={{ color: 'var(--leaves-xp)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  +25 <Leaf size={14} fill="var(--leaves-xp)" />
-                </span>
-              </button>
-
-              <button
-                type="button"
-                className="btn-primary"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '12px 16px',
-                  borderRadius: '10px',
-                  background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.2) 100%)',
-                  border: '1px solid rgba(59, 130, 246, 0.3)',
-                  color: 'var(--text-main)',
-                  fontWeight: 600,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  width: '100%'
-                }}
-                onClick={() => triggerQuickLog('transport', 'transit', 5, 'miles')}
-                disabled={loading}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '18px' }}>🚲</span> Log Active/Transit Trip (5 mi)
-                </span>
-                <span style={{ color: 'var(--leaves-xp)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  +30 <Leaf size={14} fill="var(--leaves-xp)" />
-                </span>
-              </button>
-
-              <button
-                type="button"
-                className="btn-primary"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '12px 16px',
-                  borderRadius: '10px',
-                  background: 'linear-gradient(135deg, rgba(167, 139, 250, 0.1) 0%, rgba(167, 139, 250, 0.2) 100%)',
-                  border: '1px solid rgba(167, 139, 250, 0.3)',
-                  color: 'var(--text-main)',
-                  fontWeight: 600,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  width: '100%'
-                }}
-                onClick={() => triggerQuickLog('transport', 'ev', 10, 'miles')}
-                disabled={loading}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '18px' }}>🔌</span> Log EV Drive Trip (10 mi)
-                </span>
-                <span style={{ color: 'var(--leaves-xp)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  +30 <Leaf size={14} fill="var(--leaves-xp)" />
-                </span>
-              </button>
-
-              <button
-                type="button"
-                className="btn-primary"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '12px 16px',
-                  borderRadius: '10px',
-                  background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(251, 191, 36, 0.2) 100%)',
-                  border: '1px solid rgba(251, 191, 36, 0.3)',
-                  color: 'var(--text-main)',
-                  fontWeight: 600,
-                  fontSize: '13px',
-                  cursor: 'pointer',
-                  width: '100%'
-                }}
-                onClick={() => triggerQuickLog('housing', 'solar', 15, 'kWh')}
-                disabled={loading}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '18px' }}>☀️</span> Log Solar Generation (15 kWh)
-                </span>
-                <span style={{ color: 'var(--leaves-xp)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  +35 <Leaf size={14} fill="var(--leaves-xp)" />
-                </span>
-              </button>
-            </div>
-          </div>
-
           {/* Ingest Actions Manual Logger */}
-          <div className="panel-card glass-panel">
+          {/* <div className="panel-card glass-panel">
             <h2 className="panel-title"><Plus size={20} /> Log Daily Micro-Action</h2>
             <form onSubmit={logCarbonEvent} className="log-event-form">
               <div className="input-group" style={{ margin: 0 }}>
@@ -2983,76 +2573,14 @@ export default function App() {
                 Register Log & Earn Leaves
               </button>
             </form>
-          </div>
+          </div> */}
 
-          {/* B-Corp Rewards & Sponsor Integrations */}
-          <div className="panel-card glass-panel">
-            <h2 className="panel-title"><Gift size={20} color="var(--warning)" /> Sponsor Rewards Hub</h2>
-
-            <div className="sponsor-banner">
-              <div className="sponsor-logo arcadia">ARCADIA</div>
-              <div className="sponsor-info">
-                <div className="sponsor-title">Smart Energy Plug</div>
-                <div className="sponsor-text">Link utility account and receive a free smart power plug. (Cost: 1500 Leaves)</div>
-              </div>
-              <button
-                className="sponsor-btn"
-                onClick={() => redeemVoucher('Arcadia Energy', 'plug', 1500)}
-              >
-                Claim
-              </button>
-            </div>
-
-            <div className="sponsor-banner oatly" style={{ marginTop: '12px' }}>
-              <div className="sponsor-logo oatly">OATLY</div>
-              <div className="sponsor-info">
-                <div className="sponsor-title">15% Brand Voucher</div>
-                <div className="sponsor-text">Claim a 15% barcode discount for milk-substitutes. (Cost: 500 Leaves)</div>
-              </div>
-              <button
-                className="sponsor-btn"
-                onClick={() => redeemVoucher('Oatly', 'discount', 500)}
-              >
-                Claim
-              </button>
-            </div>
-
-            <div className="sponsor-banner" style={{ marginTop: '12px', background: 'linear-gradient(135deg, hsla(142, 70%, 45%, 0.15) 0%, hsla(150, 90%, 60%, 0.05) 100%)', borderColor: 'var(--primary)' }}>
-              <div className="sponsor-logo" style={{ background: 'var(--primary)', color: 'white' }}>EDEN</div>
-              <div className="sponsor-info">
-                <div className="sponsor-title">Plant 1 Physical Tree</div>
-                <div className="sponsor-text">Eden Projects plants one real tree funded by B-Corp escrow. (Cost: 100 Leaves)</div>
-              </div>
-              <button
-                className="sponsor-btn"
-                onClick={() => redeemVoucher('Eden Projects', 'tree', 100)}
-              >
-                Fund Tree
-              </button>
-            </div>
-
-            {/* Redeemed Vouchers list */}
-            {vouchers.length > 0 && (
-              <div style={{ marginTop: '20px' }}>
-                <span className="simulator-title" style={{ fontSize: '12px', display: 'block', marginBottom: '8px' }}>Your Redeemed Rewards</span>
-                <div className="vouchers-list">
-                  {vouchers.map(v => (
-                    <div key={v.id} className="voucher-item">
-                      <div className="voucher-header">
-                        <span className="voucher-title">{v.title}</span>
-                        {v.couponCode && <span className="voucher-code">{v.couponCode}</span>}
-                      </div>
-                      <div className="voucher-desc">{v.description}</div>
-                      {v.rewardType === 'discount' && (
-                        <div className="barcode-visual" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
+          {/* Recent Activity & Footprint Logs Panel */}
+          <ActivityLogs
+            events={events}
+            deleteCarbonEvent={deleteCarbonEvent}
+            loading={loading}
+          />
         </div>
       </div>
     </div>
