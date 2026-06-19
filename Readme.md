@@ -4,6 +4,13 @@
 
 ---
 
+## 🎯 Hackathon Challenge Alignment
+
+- **Vertical**: Sustainability & GreenTech
+- **Persona**: Eco-conscious consumers seeking to understand, track, and reduce their daily carbon emissions through low-friction gamification and micro-habits.
+
+---
+
 ## 🚀 System & App Architecture
 
 ### High-Level Event-Driven Architecture

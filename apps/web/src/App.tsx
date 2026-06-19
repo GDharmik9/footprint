@@ -101,7 +101,7 @@ export default function App() {
   // Authentication & Onboarding State
   const [user, setUser] = useState<User | null>(null);
   const [baseline, setBaseline] = useState<{ housing: number; transport: number; food: number; total: number } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Progressive Calibration States
   const [isCalibrating, setIsCalibrating] = useState<boolean>(() => {
@@ -714,16 +714,16 @@ export default function App() {
       } else {
         throw new Error('Quick log API returned error');
       }
-    } catch (err) {
+    } catch {
       console.warn('API error. Executing quick log locally in sandbox.');
       // Local fallback simulation
       let computedCO2 = 0;
       if (category === 'housing') {
-        computedCO2 = computeHousingCO2(value, modeOrOption as any);
+        computedCO2 = computeHousingCO2(value, modeOrOption as 'standard' | 'smart_thermostat' | 'solar');
       } else if (category === 'transport') {
-        computedCO2 = computeTransportCO2(value, modeOrOption as any);
+        computedCO2 = computeTransportCO2(value, modeOrOption as 'suv' | 'gas_car' | 'hybrid' | 'ev' | 'transit');
       } else if (category === 'food') {
-        computedCO2 = computeFoodCO2(value, modeOrOption as any);
+        computedCO2 = computeFoodCO2(value, modeOrOption as 'meat' | 'balanced' | 'vegan');
       }
 
       const newEvent: CarbonEvent = {
@@ -858,7 +858,7 @@ export default function App() {
 
       // Fetch other data
       fetchUser(data.user.id);
-    } catch (err: any) {
+    } catch {
       console.warn('Backend server offline. Setting up local session...');
       const fallbackId = crypto.randomUUID();
       simulateOfflineState(fallbackId);
@@ -904,7 +904,7 @@ export default function App() {
       } else {
         throw new Error('Failed to update challenge');
       }
-    } catch (err) {
+    } catch {
       // Offline fallback toggle
       const challenge = challenges.find(c => c.type === challengeType);
       if (challenge) {
@@ -920,7 +920,7 @@ export default function App() {
         const isCompleted = updatedLogs.filter(Boolean).length === 7;
         let rewardAwarded = false;
         let leavesAwarded = 0;
-        let updatedUser = { ...user };
+        const updatedUser = { ...user };
 
         if (isCompleted && !challenge.rewardApplied) {
           rewardAwarded = true;
@@ -990,7 +990,7 @@ export default function App() {
       } else {
         throw new Error('Failed to redeem voucher');
       }
-    } catch (err) {
+    } catch {
       // Offline fallback
       const newLeaves = user.total_leaves - costLeaves;
       const newLevel = calculateLevel(newLeaves);
@@ -1059,7 +1059,7 @@ export default function App() {
       } else {
         throw new Error('Radar webhook returned non-200');
       }
-    } catch (err) {
+    } catch {
       // Local fallback simulation
       const computedCO2 = computeTransportCO2(simRadarDistance, simRadarMode);
       const newEvent: CarbonEvent = {
@@ -1101,7 +1101,9 @@ export default function App() {
     if (!user) return;
 
     // Launch Arcadia Connect Widget if loaded
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ((window as any).ArcadiaConnect) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const connect = new (window as any).ArcadiaConnect({
         clientToken: 'mock_client_token_for_hackathon',
         onSuccess: async (authCode: string) => {
@@ -1162,7 +1164,7 @@ export default function App() {
       } else {
         throw new Error('Arcadia webhook returned non-200');
       }
-    } catch (err) {
+    } catch {
       // Local fallback simulation
       const computedCO2 = computeHousingCO2(simArcadiaKwh, 'standard');
       const newEvent: CarbonEvent = {
@@ -1217,7 +1219,7 @@ export default function App() {
       } else {
         throw new Error('Nest webhook returned non-200');
       }
-    } catch (err) {
+    } catch {
       // Local fallback simulation
       const leavesAwarded = simNestEco ? 25 : 5;
       const newLeaves = user.total_leaves + leavesAwarded;
@@ -1291,6 +1293,21 @@ export default function App() {
   };
 
   const chartData = getChartDataPoints();
+
+  // Render Loading Screen if loading user profile initially
+  if (loading && !user) {
+    return (
+      <div className="app-container">
+        <header>
+          <div className="logo"><Leaf size={24} color="hsl(150, 90%, 60%)" /> Footprint</div>
+        </header>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, minHeight: '60vh' }}>
+          <RefreshCw size={32} color="var(--primary)" style={{ animation: 'spin 2s linear infinite' }} />
+          <p style={{ marginTop: '16px', color: 'var(--text-muted)', fontSize: '14px' }}>Loading your Eco-Sphere...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Render Onboarding Screen if user is not set
   if (!user) {
@@ -1486,7 +1503,7 @@ export default function App() {
           <div className="level-badge">
             Level {user.current_level}
           </div>
-          <button onClick={handleLogout} className="btn-secondary" title="Logout" style={{ padding: '6px 10px' }}>
+          <button onClick={handleLogout} className="btn-secondary" title="Logout" aria-label="Logout" style={{ padding: '6px 10px' }}>
             <RefreshCw size={14} />
           </button>
         </div>
@@ -2113,7 +2130,7 @@ export default function App() {
                       className="input-field"
                       style={{ padding: '8px 12px', fontSize: '14px' }}
                       value={simRadarMode}
-                      onChange={e => setSimRadarMode(e.target.value as any)}
+                      onChange={e => setSimRadarMode(e.target.value as 'suv' | 'gas_car' | 'hybrid' | 'ev' | 'transit')}
                     >
                       <option value="suv">Gas SUV</option>
                       <option value="gas_car">Gas Sedan</option>
