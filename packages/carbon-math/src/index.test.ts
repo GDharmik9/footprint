@@ -5,7 +5,9 @@ import {
   computeArchetypeBaseline,
   GRID_FACTORS,
   TRANSPORT_FACTORS,
-  DIET_FACTORS
+  DIET_FACTORS,
+  getCarbonEquivalents,
+  getCarbonEquivalentsDescription
 } from './index.js';
 
 describe('Carbon Math Library Unit Tests', () => {
@@ -102,6 +104,35 @@ describe('Carbon Math Library Unit Tests', () => {
         food: 1800,
         total: 8800,
       });
+    });
+  });
+
+  describe('getCarbonEquivalents', () => {
+    it('should correctly calculate equivalents for 22 kg CO2e', () => {
+      const res = getCarbonEquivalents(22);
+      expect(res.treesPlanted).toBe(1);
+      expect(res.smartphoneCharges).toBe(Math.round(22 / 0.0083));
+      expect(res.carMilesDriven).toBe(parseFloat((22 / 0.40).toFixed(1)));
+      expect(res.plasticBottlesAvoided).toBe(Math.round(22 / 0.083));
+    });
+  });
+
+  describe('getCarbonEquivalentsDescription', () => {
+    it('should return default text for 0 or negative input', () => {
+      expect(getCarbonEquivalentsDescription(0)).toBe('No carbon emissions saved yet.');
+    });
+
+    it('should return smartphones description for small values', () => {
+      expect(getCarbonEquivalentsDescription(2)).toContain('smartphones');
+    });
+
+    it('should return plastic bottles description for medium values', () => {
+      expect(getCarbonEquivalentsDescription(10)).toContain('plastic bottles');
+    });
+
+    it('should return trees description for large values', () => {
+      expect(getCarbonEquivalentsDescription(50)).toContain('trees');
+      expect(getCarbonEquivalentsDescription(200)).toContain('trees');
     });
   });
 });

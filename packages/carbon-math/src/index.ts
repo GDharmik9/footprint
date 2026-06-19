@@ -105,3 +105,39 @@ export function computeArchetypeBaseline(options: ArchetypeOptions): {
     total: housing + transport + food,
   };
 }
+
+/**
+ * Translates a carbon weight (in kg of CO2e) into real-world equivalents.
+ */
+export function getCarbonEquivalents(kg: number): {
+  treesPlanted: number;       // 1 tree absorbs ~22kg of CO2 per year
+  smartphoneCharges: number;  // 1 charge is ~0.0083 kg CO2
+  carMilesDriven: number;     // 1 average gas passenger car emits ~0.40 kg CO2 per mile
+  plasticBottlesAvoided: number; // 1 recycled bottle saves ~0.083 kg CO2
+} {
+  return {
+    treesPlanted: parseFloat((kg / 22).toFixed(1)),
+    smartphoneCharges: Math.round(kg / 0.0083),
+    carMilesDriven: parseFloat((kg / 0.40).toFixed(1)),
+    plasticBottlesAvoided: Math.round(kg / 0.083),
+  };
+}
+
+/**
+ * Generates a friendly descriptive text for carbon equivalents.
+ */
+export function getCarbonEquivalentsDescription(kg: number): string {
+  const eq = getCarbonEquivalents(kg);
+  if (kg <= 0) return 'No carbon emissions saved yet.';
+  
+  if (kg < 5) {
+    return `Equivalent to charging ${eq.smartphoneCharges.toLocaleString()} smartphones.`;
+  } else if (kg < 20) {
+    return `Equivalent to avoiding ${eq.plasticBottlesAvoided.toLocaleString()} plastic bottles from landfills.`;
+  } else if (kg < 100) {
+    return `Equivalent to planting ${eq.treesPlanted} mature trees or avoiding ${eq.carMilesDriven} miles in an SUV.`;
+  } else {
+    return `Equivalent to planting ${eq.treesPlanted.toLocaleString()} mature trees or avoiding ${eq.carMilesDriven.toLocaleString()} miles of gasoline driving.`;
+  }
+}
+

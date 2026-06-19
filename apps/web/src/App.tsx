@@ -10,7 +10,8 @@ import {
   computeHousingCO2,
   computeTransportCO2,
   computeFoodCO2,
-  computeArchetypeBaseline
+  computeArchetypeBaseline,
+  getCarbonEquivalentsDescription
 } from '@footprint/carbon-math';
 import Radar from 'radar-sdk-js';
 import {
@@ -25,7 +26,10 @@ import {
   CheckCircle,
   Zap,
   RefreshCw,
-  Plus
+  Plus,
+  Trash2,
+  Database,
+  Sparkles
 } from 'lucide-react';
 import './App.css';
 
@@ -52,11 +56,105 @@ function calculateLevel(leaves: number): number {
   return 5 + Math.floor((leaves - 1000) / 1000);
 }
 
+// Generate a random eco-friendly display name
+function generateRandomEcoName(): string {
+  const adjectives = [
+    'Eco', 'Green', 'Wild', 'Forest', 'Mountain', 'Leafy', 'Sunny', 'River',
+    'Wind', 'Solar', 'Mossy', 'Fern', 'Pine', 'Cedar', 'Sage', 'Clover'
+  ];
+  const nouns = [
+    'Ranger', 'Guardian', 'Seedling', 'Sprout', 'Wanderer', 'Champion', 'Warrior',
+    'Friend', 'Birch', 'Willow', 'Lily', 'Lotus', 'Breeze', 'Acorn', 'Sapling'
+  ];
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+  const noun = nouns[Math.floor(Math.random() * nouns.length)];
+  const num = Math.floor(100 + Math.random() * 900);
+  return `${adj} ${noun} #${num}`;
+}
+
+interface AutoLocation {
+  country: string;
+  postalCode: string;
+}
+
+// Detect IP location silently without requesting GPS permission
+async function detectIPLocation(): Promise<AutoLocation> {
+  try {
+    const res = await fetch('https://ipapi.co/json/');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.postal && data.country_code) {
+        return {
+          country: data.country_code.toLowerCase(),
+          postalCode: data.postal
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('IP Geolocation lookup failed, falling back to default location.', e);
+  }
+  return {
+    country: 'us',
+    postalCode: '90210'
+  };
+}
+
+// Helper: Reconstruct details description for carbon events
+function getEventDetails(event: CarbonEvent): string {
+  const { category, raw_value, raw_unit, computed_co2e_kg, source_provider } = event;
+  const provider = source_provider as string;
+  if (category === 'transport') {
+    if (provider === 'radar_sdk') {
+      return `Radar GPS trip: ${raw_value} ${raw_unit}`;
+    }
+    if (raw_value > 0) {
+      const factor = computed_co2e_kg / raw_value;
+      if (Math.abs(factor - 0.03) < 0.01) return `Public Transit/Bike (${raw_value} mi)`;
+      if (Math.abs(factor - 0.08) < 0.01) return `Electric EV trip (${raw_value} mi)`;
+      if (Math.abs(factor - 0.18) < 0.02) return `Hybrid Vehicle trip (${raw_value} mi)`;
+      if (Math.abs(factor - 0.3) < 0.02) return `Gas Sedan trip (${raw_value} mi)`;
+      if (Math.abs(factor - 0.45) < 0.05) return `Gas SUV trip (${raw_value} mi)`;
+    }
+    return `Transit commute: ${raw_value} ${raw_unit}`;
+  }
+  if (category === 'food') {
+    if (raw_value > 0) {
+      const factor = computed_co2e_kg / raw_value;
+      if (Math.abs(factor - 0.5) < 0.1) return `Plant-based/Vegan meal (${raw_value} serving${raw_value > 1 ? 's' : ''})`;
+      if (Math.abs(factor - 1.5) < 0.2) return `Balanced/Poultry meal (${raw_value} serving${raw_value > 1 ? 's' : ''})`;
+      if (Math.abs(factor - 3.0) < 0.3) return `Beef/Pork heavy meal (${raw_value} serving${raw_value > 1 ? 's' : ''})`;
+    }
+    return `Dietary intake: ${raw_value} ${raw_unit}`;
+  }
+  if (category === 'housing') {
+    if (provider === 'arcadia') {
+      return `Arcadia Utility billing: ${raw_value} ${raw_unit}`;
+    }
+    if (provider === 'nest') {
+      return `Nest Thermostat Eco check: ${raw_value} ${raw_unit}`;
+    }
+    if (raw_value > 0) {
+      const factor = computed_co2e_kg / raw_value;
+      if (Math.abs(factor - 0.38 * 0.15) < 0.02) return `Solar rooftop grid offset (${raw_value} kWh)`;
+      if (Math.abs(factor - 0.38 * 0.85) < 0.05) return `Smart Nest Thermostat heating (${raw_value} kWh)`;
+      if (Math.abs(factor - 0.38) < 0.05) return `Standard home grid heating (${raw_value} kWh)`;
+    }
+    return `Utility grid usage: ${raw_value} ${raw_unit}`;
+  }
+  return `${category} activity: ${raw_value} ${raw_unit}`;
+}
+
 export default function App() {
   // Authentication & Onboarding State
   const [user, setUser] = useState<User | null>(null);
   const [baseline, setBaseline] = useState<{ housing: number; transport: number; food: number; total: number } | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Progressive Calibration States
+  const [isCalibrating, setIsCalibrating] = useState<boolean>(() => {
+    return !localStorage.getItem('footprint_calibration_completed');
+  });
+  const [calibrationStep, setCalibrationStep] = useState<number>(1);
 
   // Onboarding Form inputs
   const [displayName, setDisplayName] = useState('');
@@ -92,6 +190,7 @@ export default function App() {
 
   // Dashboard state
   const [events, setEvents] = useState<CarbonEvent[]>([]);
+  const [chartViewMode, setChartViewMode] = useState<'total' | 'breakdown'>('total');
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
 
@@ -113,6 +212,9 @@ export default function App() {
   // Eco-Leagues Leaderboard and Tab state
   const [ecoSphereTab, setEcoSphereTab] = useState<'sphere' | 'league'>('sphere');
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [coachInsights, setCoachInsights] = useState<string[]>([]);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
 
   // Webhook simulator state
   const [simRadarDistance, setSimRadarDistance] = useState<number>(12);
@@ -132,6 +234,9 @@ export default function App() {
       if (cachedBaseline) {
         setBaseline(JSON.parse(cachedBaseline));
       }
+    } else {
+      // Zero-friction silent registration on first load
+      triggerFrictionlessOnboarding();
     }
   }, []);
 
@@ -182,10 +287,115 @@ export default function App() {
         const leagueData = await leagueRes.json();
         setLeaderboard(leagueData);
       }
+
+      // 6. Fetch personalized AI insights
+      const insightsRes = await fetch(`${API_BASE}/users/${userId}/insights`, { headers });
+      if (insightsRes.ok) {
+        const insightsData = await insightsRes.json();
+        setCoachInsights(insightsData.insights);
+        setRecommendations(insightsData.recommendations);
+      }
     } catch (e: any) {
       console.warn('Backend server connection failed. Falling back to simulated local state.');
       // Local Fallback simulation for offline testing
       simulateOfflineState(userId);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Delete a carbon event log (online or offline fallback)
+  const deleteCarbonEvent = async (eventId: string) => {
+    setLoading(true);
+    const token = localStorage.getItem('footprint_auth_token');
+    try {
+      if (!token) throw new Error('No auth token found');
+      
+      const response = await fetch(`${API_BASE}/carbon-events/${eventId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete event on backend');
+      }
+
+      const data = await response.json();
+      
+      // Deduct leaves locally and update level
+      if (data.user) {
+        setUser(data.user);
+      }
+      
+      // Remove event from state
+      setEvents(prev => prev.filter(e => e.id !== eventId));
+      
+      // Re-fetch user to make sure standings/leaderboards/challenges are synced
+      if (user) {
+        fetchUser(user.id);
+      }
+      
+      triggerToast(`Carbon event deleted. -${data.leavesDeducted} Leaves deducted.`, 'success');
+    } catch (err) {
+      console.warn('API error during deletion. Simulating deletion locally.');
+      
+      // Find the event in our local state to determine category and values
+      const eventToDelete = events.find(e => e.id === eventId);
+      if (!eventToDelete) {
+        triggerToast('Event not found.', 'error');
+        setLoading(false);
+        return;
+      }
+      
+      // Calculate how many leaves should be deducted locally
+      let leavesDeducted = 15;
+      const { category, raw_value, computed_co2e_kg } = eventToDelete;
+      
+      if (category === 'transport') {
+        if (raw_value > 0) {
+          const factor = computed_co2e_kg / raw_value;
+          if (Math.abs(factor - 0.03) < 0.02 || Math.abs(factor - 0.08) < 0.02) {
+            leavesDeducted = 30;
+          }
+        }
+      } else if (category === 'food') {
+        if (raw_value > 0) {
+          const factor = computed_co2e_kg / raw_value;
+          if (Math.abs(factor - 0.5) < 0.1) {
+            leavesDeducted = 25;
+          }
+        }
+      } else if (category === 'housing') {
+        if (raw_value > 0) {
+          const ratio = computed_co2e_kg / raw_value / 0.38;
+          if (Math.abs(ratio - 0.15) < 0.05) {
+            leavesDeducted = 35;
+          }
+        }
+      }
+      
+      if (user) {
+        const newLeaves = Math.max(0, user.total_leaves - leavesDeducted);
+        const newLevel = calculateLevel(newLeaves);
+        const updatedUser = {
+          ...user,
+          total_leaves: newLeaves,
+          current_level: newLevel
+        };
+        setUser(updatedUser);
+        
+        // Update leaderboard
+        setLeaderboard(prev => {
+          const updated = prev.map(m => m.userId === user.id ? { ...m, leaves: newLeaves, level: newLevel } : m);
+          return [...updated].sort((a, b) => b.leaves - a.leaves);
+        });
+      }
+      
+      // Remove event from state
+      setEvents(prev => prev.filter(e => e.id !== eventId));
+      triggerToast(`Local Mode: Carbon event deleted. -${leavesDeducted} Leaves deducted.`, 'info');
     } finally {
       setLoading(false);
     }
@@ -307,6 +517,277 @@ export default function App() {
     ];
     mockLeague.sort((a, b) => b.leaves - a.leaves);
     setLeaderboard(mockLeague);
+
+    // Simulate insights and micro-actions offline
+    const simulatedInsights = [
+      `💡 Your simulated transit emissions are ${commuteArchetype === 'gas' ? 'above average' : 'optimized'}. Try public transit commutes to reduce it.`,
+      `🥗 Your diet choices are set to '${dietArchetype}'. Transitioning to plant-based meals cuts food footprint by 60%.`,
+      `🏠 Your home grid setup is '${housingArchetype}'. Smart Nest thermostats can shave off up to 15% of annual heating.`
+    ];
+    setCoachInsights(simulatedInsights);
+
+    const simulatedRecs = [
+      {
+        id: 'rec-vegan-1',
+        title: 'Eat a Plant-Based Meal 🥗',
+        description: 'Replace standard animal proteins with a plant-based alternative for one meal today.',
+        category: 'food' as const,
+        type: 'vegan',
+        value: 1,
+        unit: 'meals',
+        impactKg: 1.0,
+        rewardLeaves: 25
+      },
+      {
+        id: 'rec-transit-5',
+        title: 'Ditch the Drive (5 mi) 🚲',
+        description: 'Take public transit, walk, or bike for 5 miles instead of driving a gas car.',
+        category: 'transport' as const,
+        type: 'transit',
+        value: 5,
+        unit: 'miles',
+        impactKg: 1.5,
+        rewardLeaves: 30
+      },
+      {
+        id: 'rec-solar-15',
+        title: 'Clean Solar Generation (15 kWh) ☀️',
+        description: 'Log 15 kWh of clean electricity generated from household solar panel systems.',
+        category: 'housing' as const,
+        type: 'solar',
+        value: 15,
+        unit: 'kWh',
+        impactKg: 5.7,
+        rewardLeaves: 35
+      }
+    ];
+    setRecommendations(simulatedRecs);
+  };
+
+  // Trigger zero-friction silent registration on first load
+  const triggerFrictionlessOnboarding = async () => {
+    setLoading(true);
+    try {
+      const location = await detectIPLocation();
+      const randName = generateRandomEcoName();
+
+      setDisplayName(randName);
+      setPostalCode(location.postalCode);
+      setCountry(location.country);
+
+      const initialArchetype = {
+        housing: 'townhouse' as const,
+        diet: 'balanced' as const,
+        commute: 'hybrid' as const
+      };
+
+      const response = await fetch(`${API_BASE}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          display_name: randName,
+          postal_code: location.postalCode,
+          archetype: initialArchetype
+        })
+      });
+
+      if (!response.ok) throw new Error('Frictionless onboarding registration failed');
+
+      const data = await response.json();
+      setUser(data.user);
+      setBaseline(data.baseline);
+      localStorage.setItem('footprint_user_id', data.user.id);
+      localStorage.setItem('footprint_auth_token', data.token);
+      localStorage.setItem('footprint_baseline', JSON.stringify(data.baseline));
+
+      setIsCalibrating(true);
+      setCalibrationStep(1);
+
+      triggerToast(`Welcome, ${randName}! Silent setup completed via IP GeoIP.`, 'success');
+      fetchUser(data.user.id);
+    } catch (err) {
+      console.warn('Backend offline. Initializing local sandbox session...');
+      const fallbackId = crypto.randomUUID();
+      const randName = generateRandomEcoName();
+      setDisplayName(randName);
+      setPostalCode('90210');
+      setCountry('us');
+      simulateOfflineState(fallbackId);
+      setIsCalibrating(true);
+      setCalibrationStep(1);
+      triggerToast('Frictionless setup: local sandbox ready.', 'info');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Progressive profile patch updates
+  const handleProgressiveProfileUpdate = async (updatePayload: {
+    displayName?: string;
+    postalCode?: string;
+    archetype?: {
+      housing: 'apartment' | 'townhouse' | 'family';
+      diet: 'vegan' | 'balanced' | 'meat';
+      commute: 'transit' | 'hybrid' | 'gas';
+    };
+  }) => {
+    if (!user) return;
+    setLoading(true);
+
+    try {
+      const token = localStorage.getItem('footprint_auth_token');
+      const response = await fetch(`${API_BASE}/users/${user.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updatePayload)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+        if (data.baseline) {
+          setBaseline(data.baseline);
+          localStorage.setItem('footprint_baseline', JSON.stringify(data.baseline));
+        }
+        triggerToast('Calibrated baseline updated in cloud database!', 'success');
+        fetchUser(user.id);
+      } else {
+        throw new Error('Failed to patch progressive profile');
+      }
+    } catch (err) {
+      console.warn('API error. Simulating progressive profile locally.');
+      const updatedUser = {
+        ...user,
+        display_name: updatePayload.displayName || user.display_name,
+        postal_code: updatePayload.postalCode || user.postal_code
+      };
+      setUser(updatedUser);
+
+      if (updatePayload.archetype) {
+        const localBaseline = computeArchetypeBaseline(updatePayload.archetype);
+        setBaseline(localBaseline);
+        localStorage.setItem('footprint_baseline', JSON.stringify(localBaseline));
+        triggerToast('Calibrated baseline updated locally!', 'success');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calibration survey progressive steps handler
+  const nextCalibrationStep = (stepPayload?: any) => {
+    if (stepPayload) {
+      if (stepPayload.housing) setHousingArchetype(stepPayload.housing);
+      if (stepPayload.diet) setDietArchetype(stepPayload.diet);
+      if (stepPayload.commute) setCommuteArchetype(stepPayload.commute);
+
+      const nextHousing = stepPayload.housing || housingArchetype;
+      const nextDiet = stepPayload.diet || dietArchetype;
+      const nextCommute = stepPayload.commute || commuteArchetype;
+
+      handleProgressiveProfileUpdate({
+        archetype: {
+          housing: nextHousing,
+          diet: nextDiet,
+          commute: nextCommute
+        }
+      });
+    }
+    setCalibrationStep(prev => prev + 1);
+  };
+
+  // One-Click Quick Log trigger
+  const triggerQuickLog = async (
+    category: 'food' | 'transport' | 'housing',
+    modeOrOption: string,
+    value: number,
+    unit: string
+  ) => {
+    if (!user) return;
+    setLoading(true);
+
+    try {
+      const token = localStorage.getItem('footprint_auth_token');
+      const response = await fetch(`${API_BASE}/carbon-events`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          category,
+          source_provider: 'manual',
+          raw_value: value,
+          raw_unit: unit,
+          transportMode: category === 'transport' ? modeOrOption : undefined,
+          dietType: category === 'food' ? modeOrOption : undefined,
+          housingOption: category === 'housing' ? modeOrOption : undefined
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+        fetchUser(user.id);
+        triggerToast(`Quick Log successful! Earned +${data.leavesAwarded} Leaves! 🍃`, 'success');
+      } else {
+        throw new Error('Quick log API returned error');
+      }
+    } catch (err) {
+      console.warn('API error. Executing quick log locally in sandbox.');
+      // Local fallback simulation
+      let computedCO2 = 0;
+      if (category === 'housing') {
+        computedCO2 = computeHousingCO2(value, modeOrOption as any);
+      } else if (category === 'transport') {
+        computedCO2 = computeTransportCO2(value, modeOrOption as any);
+      } else if (category === 'food') {
+        computedCO2 = computeFoodCO2(value, modeOrOption as any);
+      }
+
+      const newEvent: CarbonEvent = {
+        id: crypto.randomUUID(),
+        user_id: user.id,
+        category,
+        source_provider: 'manual',
+        raw_value: value,
+        raw_unit: unit,
+        computed_co2e_kg: computedCO2,
+        timestamp: new Date().toISOString()
+      };
+
+      setEvents(prev => [newEvent, ...prev]);
+
+      // Award leaves local mock
+      let leavesAwarded = 15;
+      if (category === 'transport' && (modeOrOption === 'ev' || modeOrOption === 'transit')) {
+        leavesAwarded += 15;
+      } else if (category === 'food' && modeOrOption === 'vegan') {
+        leavesAwarded += 10;
+      } else if (category === 'housing' && modeOrOption === 'solar') {
+        leavesAwarded += 20;
+      }
+
+      const newLeaves = user.total_leaves + leavesAwarded;
+      const newLevel = calculateLevel(newLeaves);
+      const updatedUser = {
+        ...user,
+        total_leaves: newLeaves,
+        current_level: newLevel
+      };
+      setUser(updatedUser);
+      setLeaderboard(prev => {
+        const updated = prev.map(m => m.userId === user.id ? { ...m, leaves: newLeaves, level: newLevel } : m);
+        return [...updated].sort((a, b) => b.leaves - a.leaves);
+      });
+      triggerToast(`Local Mode: Quick logged! Earned +${leavesAwarded} Leaves.`, 'success');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Submit onboarding form
@@ -883,6 +1364,15 @@ export default function App() {
   const targetTons = parseFloat((baselineTons * 0.65).toFixed(1));
   const simReduction = parseFloat((baselineTons - simFootprint.total).toFixed(1));
 
+  const filteredEvents = events.filter(e => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    const details = getEventDetails(e).toLowerCase();
+    const source = e.source_provider.toLowerCase();
+    const category = e.category.toLowerCase();
+    return details.includes(query) || source.includes(query) || category.includes(query);
+  });
+
   // Visual Eco-Sphere SVG renderer
   const renderEcoSphere = () => {
     const level = user ? user.current_level : 1;
@@ -1206,6 +1696,195 @@ export default function App() {
         </div>
       </header>
 
+      {isCalibrating && user && (
+        <div className="panel-card glass-panel calibration-widget-container" style={{ margin: '0 24px 24px 24px', padding: '24px', background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)' }}>
+              <Leaf size={20} fill="var(--primary)" /> Calibrate Your Carbon Footprint (Step {calibrationStep}/4)
+            </h3>
+            <button
+              onClick={() => {
+                setIsCalibrating(false);
+                localStorage.setItem('footprint_calibration_completed', 'true');
+              }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '12px' }}
+            >
+              Skip Setup
+            </button>
+          </div>
+
+          <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', marginBottom: '20px', overflow: 'hidden' }}>
+            <div style={{ width: `${(calibrationStep / 4) * 100}%`, height: '100%', background: 'var(--primary)', transition: 'width 0.3s ease' }} />
+          </div>
+
+          {calibrationStep === 1 && (
+            <div>
+              <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--text-muted)' }}>
+                What type of home infrastructure best represents your living situation? This sets your housing baseline.
+              </p>
+              <div className="grid-selector" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                <div
+                  className={`selector-option ${housingArchetype === 'apartment' ? 'selected' : ''}`}
+                  onClick={() => nextCalibrationStep({ housing: 'apartment' })}
+                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+                >
+                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🏢</span>
+                  <strong style={{ display: 'block', fontSize: '14px' }}>City Apartment</strong>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Shared walls, low utility load</span>
+                </div>
+                <div
+                  className={`selector-option ${housingArchetype === 'townhouse' ? 'selected' : ''}`}
+                  onClick={() => nextCalibrationStep({ housing: 'townhouse' })}
+                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+                >
+                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🏡</span>
+                  <strong style={{ display: 'block', fontSize: '14px' }}>Townhouse</strong>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Moderate spacing and utilities</span>
+                </div>
+                <div
+                  className={`selector-option ${housingArchetype === 'family' ? 'selected' : ''}`}
+                  onClick={() => nextCalibrationStep({ housing: 'family' })}
+                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+                >
+                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🏰</span>
+                  <strong style={{ display: 'block', fontSize: '14px' }}>Single Family Home</strong>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Detached, higher heating load</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {calibrationStep === 2 && (
+            <div>
+              <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--text-muted)' }}>
+                How would you describe your typical dietary choices? Food accounts for up to a third of personal emissions.
+              </p>
+              <div className="grid-selector" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                <div
+                  className={`selector-option ${dietArchetype === 'vegan' ? 'selected' : ''}`}
+                  onClick={() => nextCalibrationStep({ diet: 'vegan' })}
+                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+                >
+                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🥗</span>
+                  <strong style={{ display: 'block', fontSize: '14px' }}>Plant-Forward</strong>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Vegan or vegetarian baseline</span>
+                </div>
+                <div
+                  className={`selector-option ${dietArchetype === 'balanced' ? 'selected' : ''}`}
+                  onClick={() => nextCalibrationStep({ diet: 'balanced' })}
+                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+                >
+                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🍗</span>
+                  <strong style={{ display: 'block', fontSize: '14px' }}>Balanced</strong>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>White meat, grains, low red meat</span>
+                </div>
+                <div
+                  className={`selector-option ${dietArchetype === 'meat' ? 'selected' : ''}`}
+                  onClick={() => nextCalibrationStep({ diet: 'meat' })}
+                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+                >
+                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🥩</span>
+                  <strong style={{ display: 'block', fontSize: '14px' }}>Meat Enthusiast</strong>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Regular beef, pork, dairy heavy</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {calibrationStep === 3 && (
+            <div>
+              <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--text-muted)' }}>
+                How do you typically commute or travel? Transport represents the largest source of transit emissions.
+              </p>
+              <div className="grid-selector" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                <div
+                  className={`selector-option ${commuteArchetype === 'transit' ? 'selected' : ''}`}
+                  onClick={() => nextCalibrationStep({ commute: 'transit' })}
+                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+                >
+                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🚲</span>
+                  <strong style={{ display: 'block', fontSize: '14px' }}>Transit / Bike / Walk</strong>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Subway, bus, active modes</span>
+                </div>
+                <div
+                  className={`selector-option ${commuteArchetype === 'hybrid' ? 'selected' : ''}`}
+                  onClick={() => nextCalibrationStep({ commute: 'hybrid' })}
+                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+                >
+                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🔌</span>
+                  <strong style={{ display: 'block', fontSize: '14px' }}>Hybrid / EV</strong>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Efficient electric/hybrid vehicle</span>
+                </div>
+                <div
+                  className={`selector-option ${commuteArchetype === 'gas' ? 'selected' : ''}`}
+                  onClick={() => nextCalibrationStep({ commute: 'gas' })}
+                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+                >
+                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🚗</span>
+                  <strong style={{ display: 'block', fontSize: '14px' }}>SUV / Sedan</strong>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Standard gas-powered vehicle</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {calibrationStep === 4 && (
+            <div>
+              <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--text-muted)' }}>
+                Customize your display name and location to wrap up calibration. We auto-detected these from your IP.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '400px', marginBottom: '20px' }}>
+                <div className="input-group" style={{ margin: 0 }}>
+                  <label htmlFor="calibrate-name">Display Name</label>
+                  <input
+                    id="calibrate-name"
+                    type="text"
+                    value={displayName}
+                    onChange={e => setDisplayName(e.target.value)}
+                    className="input-field"
+                  />
+                </div>
+                <div className="input-group" style={{ margin: 0 }}>
+                  <label htmlFor="calibrate-zip">Postal / Zip Code</label>
+                  <input
+                    id="calibrate-zip"
+                    type="text"
+                    value={postalCode}
+                    onChange={handleChangePostalCode}
+                    className="input-field"
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ width: 'auto', padding: '10px 24px' }}
+                onClick={async () => {
+                  const cleanCode = postalCode.trim();
+                  if (cleanCode) {
+                    const config = COUNTRY_CONFIGS[country];
+                    const localRegex = new RegExp(config.pattern);
+                    if (!localRegex.test(cleanCode)) {
+                      triggerToast(`Please enter a valid postal code for ${config.name}.`, 'error');
+                      return;
+                    }
+                  }
+                  await handleProgressiveProfileUpdate({
+                    displayName,
+                    postalCode
+                  });
+                  setIsCalibrating(false);
+                  localStorage.setItem('footprint_calibration_completed', 'true');
+                  triggerToast('Calibration complete! Eco-Sphere updated.', 'success');
+                }}
+              >
+                Finish Calibration!
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="dashboard-grid">
         {/* Left Side: Carbon Stats, Simulator, History chart */}
         <div className="left-panel">
@@ -1245,14 +1924,24 @@ export default function App() {
             </div>
 
             {simReduction > 0 ? (
-              <div className="projected-reduction-banner">
-                <span className="reduction-label">Projected Lifetime Reduction:</span>
-                <span className="reduction-value">-{simReduction} Tons/Yr</span>
+              <div className="projected-reduction-banner" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                  <span className="reduction-label">Projected Annual Reduction:</span>
+                  <span className="reduction-value">-{simReduction} Tons/Yr</span>
+                </div>
+                <div style={{ fontSize: '11px', opacity: 0.85, color: 'var(--accent)', marginTop: '4px', textAlign: 'left' }}>
+                  🌿 {getCarbonEquivalentsDescription(simReduction * 1000)}
+                </div>
               </div>
             ) : (
-              <div className="projected-reduction-banner" style={{ background: 'hsla(346, 84%, 61%, 0.1)', borderColor: 'var(--danger)' }}>
-                <span className="reduction-label" style={{ color: 'var(--danger)' }}>Above Onboarding Target:</span>
-                <span className="reduction-value" style={{ color: 'var(--danger)' }}>+{Math.abs(simReduction)} Tons/Yr</span>
+              <div className="projected-reduction-banner" style={{ background: 'hsla(346, 84%, 61%, 0.1)', borderColor: 'var(--danger)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                  <span className="reduction-label" style={{ color: 'var(--danger)' }}>Above Onboarding Target:</span>
+                  <span className="reduction-value" style={{ color: 'var(--danger)' }}>+{Math.abs(simReduction)} Tons/Yr</span>
+                </div>
+                <div style={{ fontSize: '11px', opacity: 0.85, color: 'var(--danger)', marginTop: '4px', textAlign: 'left' }}>
+                  ⚠️ Try using the Simulator below to lower your annual projected trajectory.
+                </div>
               </div>
             )}
           </div>
@@ -1351,7 +2040,51 @@ export default function App() {
 
           {/* Historical Trend Chart */}
           <div className="panel-card glass-panel">
-            <h2 className="panel-title"><Activity size={20} color="var(--primary)" /> Emitted Carbon Trend</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 className="panel-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Activity size={20} color="var(--primary)" /> Emitted Carbon Trend
+              </h2>
+              {chartData.length > 0 && (
+                <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', padding: '2px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setChartViewMode('total')}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      borderRadius: '4px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: chartViewMode === 'total' ? 'var(--primary)' : 'transparent',
+                      color: chartViewMode === 'total' ? 'white' : 'var(--text-dim)',
+                      transition: 'all 0.2s',
+                      outline: 'none'
+                    }}
+                  >
+                    Total
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChartViewMode('breakdown')}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      borderRadius: '4px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: chartViewMode === 'breakdown' ? 'var(--primary)' : 'transparent',
+                      color: chartViewMode === 'breakdown' ? 'white' : 'var(--text-dim)',
+                      transition: 'all 0.2s',
+                      outline: 'none'
+                    }}
+                  >
+                    Breakdown
+                  </button>
+                </div>
+              )}
+            </div>
 
             {chartData.length > 0 ? (
               <div className="chart-container">
@@ -1361,6 +2094,18 @@ export default function App() {
                       <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.4" />
                       <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.0" />
                     </linearGradient>
+                    <linearGradient id="housingGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="hsl(150, 90%, 60%)" />
+                      <stop offset="100%" stopColor="hsl(142, 70%, 40%)" />
+                    </linearGradient>
+                    <linearGradient id="transportGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="hsl(217, 91%, 65%)" />
+                      <stop offset="100%" stopColor="hsl(224, 80%, 50%)" />
+                    </linearGradient>
+                    <linearGradient id="foodGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="hsl(45, 100%, 55%)" />
+                      <stop offset="100%" stopColor="hsl(34, 97%, 45%)" />
+                    </linearGradient>
                   </defs>
 
                   {/* Grid Lines */}
@@ -1368,53 +2113,384 @@ export default function App() {
                   <line x1="40" y1="80" x2="380" y2="80" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="4" />
                   <line x1="40" y1="140" x2="380" y2="140" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="4" />
 
-                  {/* Points & Path */}
-                  {(() => {
-                    const maxVal = Math.max(...chartData.map(d => d.total), 1);
-                    const coords = chartData.map((d, index) => {
-                      const x = 40 + (index / (chartData.length - 1 || 1)) * 340;
-                      // Max value corresponds to y=20, 0 value to y=170
-                      const y = 170 - (d.total / maxVal) * 140;
-                      return { x, y, label: d.label, val: d.total };
-                    });
+                  {/* Chart Rendering */}
+                  {chartViewMode === 'total' ? (
+                    (() => {
+                      const maxVal = Math.max(...chartData.map(d => d.total), 1);
+                      const coords = chartData.map((d, index) => {
+                        const x = 40 + (index / (chartData.length - 1 || 1)) * 340;
+                        const y = 170 - (d.total / maxVal) * 140;
+                        return { x, y, label: d.label, val: d.total };
+                      });
 
-                    const pathD = coords.reduce((acc, c, i) => i === 0 ? `M ${c.x} ${c.y}` : `${acc} L ${c.x} ${c.y}`, '');
-                    const areaD = coords.length > 0
-                      ? `${pathD} L ${coords[coords.length - 1].x} 170 L ${coords[0].x} 170 Z`
-                      : '';
+                      const pathD = coords.reduce((acc, c, i) => i === 0 ? `M ${c.x} ${c.y}` : `${acc} L ${c.x} ${c.y}`, '');
+                      const areaD = coords.length > 0
+                        ? `${pathD} L ${coords[coords.length - 1].x} 170 L ${coords[0].x} 170 Z`
+                        : '';
 
-                    return (
-                      <>
-                        {/* Shaded Area */}
-                        {areaD && <path d={areaD} fill="url(#chartGrad)" />}
-                        {/* Connected Line */}
-                        {pathD && <path d={pathD} fill="none" stroke="var(--primary)" strokeWidth="2.5" />}
+                      return (
+                        <>
+                          {/* Shaded Area */}
+                          {areaD && <path d={areaD} fill="url(#chartGrad)" />}
+                          {/* Connected Line */}
+                          {pathD && <path d={pathD} fill="none" stroke="var(--primary)" strokeWidth="2.5" />}
 
-                        {/* Points */}
-                        {coords.map((c, i) => (
-                          <g key={i}>
-                            <circle cx={c.x} cy={c.y} r="4" fill="var(--accent)" stroke="var(--bg-dark)" strokeWidth="1.5" />
-                            {/* Text labels for values */}
-                            <text x={c.x} y={c.y - 10} fill="var(--text-main)" fontSize="8" textAnchor="middle" fontWeight="600">
-                              {Math.round(c.val)} kg
+                          {/* Points */}
+                          {coords.map((c, i) => (
+                            <g key={i}>
+                              <circle cx={c.x} cy={c.y} r="4" fill="var(--accent)" stroke="var(--bg-dark)" strokeWidth="1.5" />
+                              <text x={c.x} y={c.y - 10} fill="var(--text-main)" fontSize="8" textAnchor="middle" fontWeight="600">
+                                {Math.round(c.val)} kg
+                              </text>
+                              <text x={c.x} y="190" fill="var(--text-dim)" fontSize="10" textAnchor="middle">
+                                {c.label}
+                              </text>
+                            </g>
+                          ))}
+                        </>
+                      );
+                    })()
+                  ) : (
+                    // Stacked Bar Chart breakdown
+                    (() => {
+                      const maxVal = Math.max(...chartData.map(d => d.total), 1);
+                      return chartData.map((d, index) => {
+                        const cX = 40 + (index / (chartData.length - 1 || 1)) * 340;
+                        const barWidth = 20;
+
+                        const hHousing = (d.housing / maxVal) * 140;
+                        const hTransport = (d.transport / maxVal) * 140;
+                        const hFood = (d.food / maxVal) * 140;
+
+                        const yHousing = 170 - hHousing;
+                        const yTransport = yHousing - hTransport;
+                        const yFood = yTransport - hFood;
+
+                        return (
+                          <g key={index}>
+                            {/* Housing Segment */}
+                            {hHousing > 0 && (
+                              <rect x={cX - barWidth/2} y={yHousing} width={barWidth} height={hHousing} fill="url(#housingGrad)" rx="1.5" />
+                            )}
+                            {/* Transport Segment */}
+                            {hTransport > 0 && (
+                              <rect x={cX - barWidth/2} y={yTransport} width={barWidth} height={hTransport} fill="url(#transportGrad)" rx="1.5" />
+                            )}
+                            {/* Food Segment */}
+                            {hFood > 0 && (
+                              <rect x={cX - barWidth/2} y={yFood} width={barWidth} height={hFood} fill="url(#foodGrad)" rx="1.5" />
+                            )}
+                            {/* Total Value text */}
+                            <text x={cX} y={yFood - 8} fill="var(--text-main)" fontSize="8" textAnchor="middle" fontWeight="600">
+                              {Math.round(d.total)} kg
                             </text>
                             {/* Month Label */}
-                            <text x={c.x} y="190" fill="var(--text-dim)" fontSize="10" textAnchor="middle">
-                              {c.label}
+                            <text x={cX} y="190" fill="var(--text-dim)" fontSize="10" textAnchor="middle">
+                              {d.label}
                             </text>
                           </g>
-                        ))}
-                      </>
-                    );
-                  })()}
+                        );
+                      });
+                    })()
+                  )}
 
                   <line x1="40" y1="170" x2="380" y2="170" stroke="var(--border-color)" strokeWidth="1" />
                 </svg>
+
+                {/* Legend for breakdown */}
+                {chartViewMode === 'breakdown' && (
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '12px', marginBottom: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: 'linear-gradient(135deg, hsl(150, 90%, 60%), hsl(142, 70%, 40%))' }} />
+                      🏠 Housing
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: 'linear-gradient(135deg, hsl(217, 91%, 65%), hsl(224, 80%, 50%))' }} />
+                      🚗 Transport
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: 'linear-gradient(135deg, hsl(45, 100%, 55%), hsl(34, 97%, 45%))' }} />
+                      🥗 Food
+                    </span>
+                  </div>
+                )}
+
+                {(() => {
+                  const latestMonth = chartData[chartData.length - 1];
+                  return (
+                    <div style={{ background: 'rgba(255,255,255,0.01)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '12px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '12px' }}>
+                      <strong style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Leaf size={14} color="var(--primary)" /> Latest Month Context ({latestMonth.label}):
+                      </strong>
+                      <span style={{ color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                        Your total monthly footprint of **{Math.round(latestMonth.total)} kg CO2e** is {getCarbonEquivalentsDescription(latestMonth.total)}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <p style={{ color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center', padding: '40px 0' }}>
                 No tracking events registered yet.
               </p>
+            )}
+          </div>
+
+          {/* Recent Activity & Footprint Logs Panel */}
+          <div className="panel-card glass-panel">
+            <h2 className="panel-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Database size={20} color="var(--primary)" /> Footprint Activity Logs
+              </span>
+              <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontWeight: 'normal' }}>
+                {events.length} total logs
+              </span>
+            </h2>
+            
+            {/* Search Filter */}
+            <div style={{ marginBottom: '16px' }}>
+              <input
+                type="text"
+                placeholder="Search logs by category or details..."
+                className="input-field"
+                style={{ padding: '8px 12px', fontSize: '13px' }}
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {filteredEvents.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
+                {filteredEvents.map(e => {
+                  const details = getEventDetails(e);
+                  const dateStr = new Date(e.timestamp).toLocaleDateString('default', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  });
+                  
+                  // Category emoji & colors
+                  let categoryEmoji = '🌱';
+                  let badgeBg = 'rgba(255,255,255,0.05)';
+                  let badgeColor = 'var(--text-muted)';
+                  
+                  if (e.category === 'housing') {
+                    categoryEmoji = '🏠';
+                    badgeBg = 'rgba(16, 185, 129, 0.1)';
+                    badgeColor = 'hsl(150, 90%, 65%)';
+                  } else if (e.category === 'transport') {
+                    categoryEmoji = '🚗';
+                    badgeBg = 'rgba(59, 130, 246, 0.1)';
+                    badgeColor = 'hsl(217, 91%, 65%)';
+                  } else if (e.category === 'food') {
+                    categoryEmoji = '🥗';
+                    badgeBg = 'rgba(251, 191, 36, 0.1)';
+                    badgeColor = 'hsl(45, 100%, 55%)';
+                  }
+
+                  return (
+                    <div
+                      key={e.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '12px',
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                        gap: '12px',
+                        transition: 'all 0.2s ease'
+                      }}
+                      className="activity-item-row"
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                        <span style={{ fontSize: '20px', flexShrink: 0 }}>{categoryEmoji}</span>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-main)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                              {details}
+                            </span>
+                            <span style={{
+                              fontSize: '9px',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              background: badgeBg,
+                              color: badgeColor,
+                              fontWeight: 700,
+                              textTransform: 'uppercase'
+                            }}>
+                              {e.source_provider}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: '11px', color: 'var(--text-dim)', display: 'block', marginTop: '2px' }}>
+                            {dateStr}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+                        <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--text-main)' }}>
+                          {Math.round(e.computed_co2e_kg)} kg CO2e
+                        </span>
+                        
+                        <button
+                          type="button"
+                          onClick={() => deleteCarbonEvent(e.id)}
+                          style={{
+                            background: 'rgba(239, 68, 68, 0.1)',
+                            border: 'none',
+                            color: '#ef4444',
+                            cursor: 'pointer',
+                            padding: '6px',
+                            borderRadius: '6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s ease',
+                          }}
+                          className="delete-activity-btn"
+                          title="Delete activity log"
+                          disabled={loading}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)', fontSize: '13px' }}>
+                No activities match your search.
+              </div>
+            )}
+          </div>
+
+          {/* AI Climate Coach & Recommendations Card */}
+          <div className="panel-card glass-panel" style={{ background: 'rgba(16, 185, 129, 0.03)', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
+            <h2 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Sparkles size={20} color="var(--primary)" /> AI Climate Coach
+            </h2>
+            
+            {/* Insights Section */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
+              {coachInsights.map((insight, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    borderLeft: '3px solid var(--primary)',
+                    padding: '10px 14px',
+                    borderRadius: '0 8px 8px 0',
+                    fontSize: '13px',
+                    color: 'var(--text-muted)',
+                    lineHeight: '1.4',
+                    textAlign: 'left'
+                  }}
+                >
+                  {insight}
+                </div>
+              ))}
+            </div>
+
+            {/* Recommendations Section */}
+            {recommendations.length > 0 && (
+              <div>
+                <span className="simulator-title" style={{ fontSize: '11px', display: 'block', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)' }}>
+                  Recommended Micro-Actions
+                </span>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {recommendations.map(rec => {
+                    let badgeBg = 'rgba(255,255,255,0.05)';
+                    let badgeColor = 'var(--text-muted)';
+                    
+                    if (rec.category === 'housing') {
+                      badgeBg = 'rgba(16, 185, 129, 0.1)';
+                      badgeColor = 'hsl(150, 90%, 65%)';
+                    } else if (rec.category === 'transport') {
+                      badgeBg = 'rgba(59, 130, 246, 0.1)';
+                      badgeColor = 'hsl(217, 91%, 65%)';
+                    } else if (rec.category === 'food') {
+                      badgeBg = 'rgba(251, 191, 36, 0.1)';
+                      badgeColor = 'hsl(45, 100%, 55%)';
+                    }
+
+                    return (
+                      <div
+                        key={rec.id}
+                        style={{
+                          background: 'rgba(0, 0, 0, 0.2)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '10px',
+                          padding: '14px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '10px',
+                          textAlign: 'left',
+                          transition: 'all 0.2s ease'
+                        }}
+                        className="rec-action-card"
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
+                          <div>
+                            <strong style={{ fontSize: '14px', color: 'var(--text-main)', display: 'block' }}>
+                              {rec.title}
+                            </strong>
+                            <span style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginTop: '3px' }}>
+                              {rec.description}
+                            </span>
+                          </div>
+                          
+                          <span style={{
+                            fontSize: '10px',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: badgeBg,
+                            color: badgeColor,
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            flexShrink: 0
+                          }}>
+                            {rec.category}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 600 }}>
+                              🍃 Avoids {rec.impactKg} kg CO2e
+                            </span>
+                            <span style={{ fontSize: '11px', color: 'var(--leaves-xp)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              +{rec.rewardLeaves} <Leaf size={12} fill="var(--leaves-xp)" style={{ display: 'inline' }} />
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            style={{
+                              padding: '6px 12px',
+                              fontSize: '12px',
+                              borderRadius: '6px',
+                              width: 'auto',
+                              margin: 0,
+                              background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)',
+                              boxShadow: 'none'
+                            }}
+                            onClick={() => triggerQuickLog(rec.category, rec.type, rec.value, rec.unit)}
+                            disabled={loading}
+                          >
+                            Log Action
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
 
@@ -1673,6 +2749,130 @@ export default function App() {
                 </div>
               </div>
             ))}
+          </div>
+
+          {/* Quick Action Tracker Panel */}
+          <div className="panel-card glass-panel" style={{ background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.15)' }}>
+            <h2 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <Zap size={20} color="var(--accent)" /> 1-Click Quick Tracker
+            </h2>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              Log common green habits instantly to track reductions and earn bonus Leaves.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.2) 100%)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                  color: 'var(--text-main)',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  width: '100%'
+                }}
+                onClick={() => triggerQuickLog('food', 'vegan', 1, 'meals')}
+                disabled={loading}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '18px' }}>🥗</span> Log Plant-Based Meal
+                </span>
+                <span style={{ color: 'var(--leaves-xp)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  +25 <Leaf size={14} fill="var(--leaves-xp)" />
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className="btn-primary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.2) 100%)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                  color: 'var(--text-main)',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  width: '100%'
+                }}
+                onClick={() => triggerQuickLog('transport', 'transit', 5, 'miles')}
+                disabled={loading}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '18px' }}>🚲</span> Log Active/Transit Trip (5 mi)
+                </span>
+                <span style={{ color: 'var(--leaves-xp)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  +30 <Leaf size={14} fill="var(--leaves-xp)" />
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className="btn-primary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, rgba(167, 139, 250, 0.1) 0%, rgba(167, 139, 250, 0.2) 100%)',
+                  border: '1px solid rgba(167, 139, 250, 0.3)',
+                  color: 'var(--text-main)',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  width: '100%'
+                }}
+                onClick={() => triggerQuickLog('transport', 'ev', 10, 'miles')}
+                disabled={loading}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '18px' }}>🔌</span> Log EV Drive Trip (10 mi)
+                </span>
+                <span style={{ color: 'var(--leaves-xp)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  +30 <Leaf size={14} fill="var(--leaves-xp)" />
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className="btn-primary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(251, 191, 36, 0.2) 100%)',
+                  border: '1px solid rgba(251, 191, 36, 0.3)',
+                  color: 'var(--text-main)',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  width: '100%'
+                }}
+                onClick={() => triggerQuickLog('housing', 'solar', 15, 'kWh')}
+                disabled={loading}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '18px' }}>☀️</span> Log Solar Generation (15 kWh)
+                </span>
+                <span style={{ color: 'var(--leaves-xp)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  +35 <Leaf size={14} fill="var(--leaves-xp)" />
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* Ingest Actions Manual Logger */}

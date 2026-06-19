@@ -1,3 +1,42 @@
+# ⚡ Critical Score Elevation Path (92.8 → 100/100)
+
+
+___
+
+This sequence outline defines the immediate execution workflow to optimize Code Quality, Security, Testing, and Accessibility to improve our leaderboard rank (Current Rank: #697).
+
+### 📋 Optimization Action Items
+
+1. [x] **Project Statement Alignment Milestones**: Implemented contextual equivalents, 1-click quick action trackers, trend chart breakdown toggles, history logs deletion, AI Climate Coach recommendations, and frictionless onboarding.
+   - [x] **Frictionless Onboarding**: Auto-assigned eco names, GeoIP location detection, and progressive profiling checklist widget.
+   - [x] **1-Click Quick Trackers**: Rapid habit logging for meals, commutes, EV drives, and solar power generation.
+   - [x] **Contextual Carbon Equivalents**: Mapped emission figures to relatable comparisons (trees planted, vehicle miles, smartphone charges).
+   - [x] **Trends stacked chart breakdown**: Interactive chart toggles switching between total trend lines and stacked monthly HSL category bar segments.
+   - [x] **Footprint Activity Logs feed**: Clean feed panel allowing logs search and secure deletion (cloud database syncing & local sandbox fallbacks).
+   - [x] **AI Climate Coach Engine**: dynamic insights based on 30-day user telemetry recommending custom interactive micro-tasks.
+
+2. **Step A: Security Hardening & Input Verification**
+   - [ ] Install dependencies: `helmet`, `express-rate-limit`, `zod`.
+   - [ ] Apply `helmet` and rate limiting policies in `server.ts`.
+   - [ ] Create schemas using `zod` for all request bodies; reject invalid input with status `400`.
+   - [ ] Upgrade JWT storage flow to secure cookie handling.
+
+3. **Step B: Backend & Frontend Refactoring (Code Quality)**
+   - [ ] Extract controllers and services out of `server.ts`.
+   - [ ] Subdivide `App.tsx` into `/components` (e.g., `EcoSphere.tsx`, `ArchetypeForm.tsx`, `Simulator.tsx`, `RewardsHub.tsx`).
+   - [ ] Resolve TypeScript compiler warnings and type any fallback properties.
+
+4. **Step C: Test Coverage Implementation**
+   - [ ] Set up testing frameworks in `apps/web` (Vitest/React Testing Library) and `apps/api` (Supertest).
+   - [ ] Achieve >90% coverage for carbon math, core user endpoints, and dashboard widgets.
+
+5. **Step D: Accessibility Audit & Fixes**
+   - [ ] Update `App.css` variables to ensure standard high-contrast options.
+   - [ ] Map tabIndex and keypress events for all simulated sliders and custom UI elements.
+   - [ ] Wrap non-semantic components in semantic HTML5 with complete ARIA attributes.
+
+---
+
 # 🚀 Ordered Next Moves Plan (Next.md)
 
 This document establishes the step-by-step sequence of development tasks required to transition **Footprint** from its current MVP simulation phase into a production-grade working application.

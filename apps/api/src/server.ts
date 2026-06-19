@@ -36,6 +36,7 @@ import { verifyWebhookSignature } from './services/signatureVerification.js';
 import { startLeaguesEvaluationCron, evaluateCompetitiveLeagues } from './services/cron.js';
 import { triggerTreePlanting } from './services/eden.js';
 import { generateShopifyDiscountCode } from './services/shopify.js';
+import { generateUserInsights } from './services/insights.js';
 
 
 const app = express();
@@ -204,6 +205,158 @@ app.get('/api/users/:id', authenticateToken, async (req: AuthenticatedRequest, r
   }
 });
 
+// 2b. PATCH /api/users/:id - Update user details & archetype (Secured)
+app.patch('/api/users/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    if (req.userId !== req.params.id) {
+      res.status(403).json({ error: 'Access denied: User mismatch' });
+      return;
+    }
+
+    const { displayName, postalCode, archetype } = req.body;
+    const userId = req.params.id;
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const updateData: any = {};
+    if (displayName) {
+      updateData.displayName = displayName;
+    }
+    if (postalCode !== undefined) {
+      updateData.postalCode = postalCode;
+    }
+
+    // Perform database user update if needed
+    if (Object.keys(updateData).length > 0) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: updateData
+      });
+
+      // If displayName changed, update username in the league
+      if (displayName) {
+        await prisma.league.updateMany({
+          where: { userId },
+          data: { username: displayName }
+        });
+      }
+    }
+
+    let baseline = null;
+
+    if (archetype) {
+      // Recalculate new baseline
+      baseline = computeArchetypeBaseline(archetype);
+
+      // Re-calculate regional grid factor if postal code is changing, or use current user's postal code
+      const currentPostalCode = postalCode !== undefined ? postalCode : (user.postalCode || '');
+      const gridFactor = await getGridCarbonFactor(currentPostalCode);
+      const customRegionKey = `custom-${currentPostalCode}`;
+      GRID_FACTORS[customRegionKey] = gridFactor;
+
+      // Delete old manual events to re-seed with the new archetype
+      await prisma.carbonEvent.deleteMany({
+        where: {
+          userId,
+          sourceProvider: 'manual'
+        }
+      });
+
+      // Seed new baseline events for the last 6 months
+      const now = new Date();
+      const eventDataList = [];
+      for (let i = 5; i >= 0; i--) {
+        const eventDate = new Date(now.getFullYear(), now.getMonth() - i, 15);
+        const timestamp = eventDate;
+
+        // Seed housing event (monthly)
+        const housingKWh = archetype.housing === 'apartment' ? 300 : archetype.housing === 'family' ? 1000 : 500;
+        const housingCO2 = computeHousingCO2(housingKWh, 'standard', customRegionKey);
+        eventDataList.push({
+          id: crypto.randomUUID(),
+          userId,
+          category: 'housing',
+          sourceProvider: 'manual',
+          rawValue: housingKWh,
+          rawUnit: 'kWh',
+          computedCo2eKg: housingCO2,
+          regionCode: customRegionKey,
+          timestamp
+        });
+
+        // Seed transport event (monthly)
+        const transportMiles = archetype.commute === 'transit' ? 100 : archetype.commute === 'gas' ? 1200 : 600;
+        const transportMode = archetype.commute === 'transit' ? 'transit' : archetype.commute === 'gas' ? 'suv' : 'hybrid';
+        const transportCO2 = computeTransportCO2(transportMiles, transportMode as any);
+        eventDataList.push({
+          id: crypto.randomUUID(),
+          userId,
+          category: 'transport',
+          sourceProvider: 'manual',
+          rawValue: transportMiles,
+          rawUnit: 'miles',
+          computedCo2eKg: transportCO2,
+          timestamp
+        });
+
+        // Seed food event (monthly)
+        const foodMeals = 90; // ~3 meals a day
+        const foodDiet = archetype.diet || 'balanced';
+        const foodCO2 = computeFoodCO2(foodMeals, foodDiet);
+        eventDataList.push({
+          id: crypto.randomUUID(),
+          userId,
+          category: 'food',
+          sourceProvider: 'manual',
+          rawValue: foodMeals,
+          rawUnit: 'meals',
+          computedCo2eKg: foodCO2,
+          timestamp
+        });
+      }
+
+      await prisma.carbonEvent.createMany({
+        data: eventDataList
+      });
+    }
+
+    const updatedUser = await prisma.user.findUnique({ where: { id: userId } });
+    res.json({
+      user: updatedUser ? {
+        id: updatedUser.id,
+        display_name: updatedUser.displayName,
+        current_level: updatedUser.currentLevel,
+        total_leaves: updatedUser.totalLeaves,
+        postal_code: updatedUser.postalCode,
+        created_at: updatedUser.createdAt.toISOString()
+      } : null,
+      baseline
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2c. GET /api/users/:id/insights - Fetch personalized carbon insights & recommendations (Secured)
+app.get('/api/users/:id/insights', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    if (req.userId !== req.params.id) {
+      res.status(403).json({ error: 'Access denied: User mismatch' });
+      return;
+    }
+
+    const insightsData = await generateUserInsights(req.params.id);
+    res.json(insightsData);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 3. GET /api/carbon-events/:userId - Retrieve carbon footprint logs (Secured)
 app.get('/api/carbon-events/:userId', authenticateToken, async (req: AuthenticatedRequest, res) => {
   try {
@@ -227,6 +380,112 @@ app.get('/api/carbon-events/:userId', authenticateToken, async (req: Authenticat
       region_code: e.regionCode,
       timestamp: e.timestamp.toISOString()
     })));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 3b. DELETE /api/carbon-events/:id - Delete a carbon tracking event (Secured)
+app.delete('/api/carbon-events/:id', authenticateToken, async (req: AuthenticatedRequest, res) => {
+  try {
+    const eventId = req.params.id;
+    const userId = req.userId!;
+
+    // Find the event
+    const event = await prisma.carbonEvent.findUnique({
+      where: { id: eventId }
+    });
+
+    if (!event) {
+      res.status(404).json({ error: 'Carbon event not found' });
+      return;
+    }
+
+    if (event.userId !== userId) {
+      res.status(403).json({ error: 'Access denied: Event owner mismatch' });
+      return;
+    }
+
+    // Calculate leaves to deduct
+    let leavesDeducted = 15;
+    const category = event.category;
+    const rawValue = event.rawValue;
+    const computedCo2eKg = event.computedCo2eKg;
+    const regionCode = event.regionCode;
+
+    if (category === 'transport') {
+      if (rawValue > 0) {
+        const factor = computedCo2eKg / rawValue;
+        if (Math.abs(factor - 0.03) < 0.02 || Math.abs(factor - 0.08) < 0.02) {
+          leavesDeducted = 30; // ev or transit bonus (15 + 15)
+        }
+      }
+    } else if (category === 'food') {
+      if (rawValue > 0) {
+        const factor = computedCo2eKg / rawValue;
+        if (Math.abs(factor - 0.5) < 0.1) {
+          leavesDeducted = 25; // vegan bonus (15 + 10)
+        }
+      }
+    } else if (category === 'housing') {
+      if (rawValue > 0) {
+        let baseFactor = 0.38;
+        if (regionCode && GRID_FACTORS[regionCode]) {
+          baseFactor = GRID_FACTORS[regionCode];
+        }
+        const ratio = computedCo2eKg / rawValue / baseFactor;
+        if (Math.abs(ratio - 0.15) < 0.05) {
+          leavesDeducted = 35; // solar bonus (15 + 20)
+        }
+      }
+    }
+
+    // Delete the event
+    await prisma.carbonEvent.delete({
+      where: { id: eventId }
+    });
+
+    // Update user leaves and level
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    let updatedUser = null;
+    if (user) {
+      const newLeaves = Math.max(0, user.totalLeaves - leavesDeducted);
+      const newLevel = calculateLevel(newLeaves);
+      await prisma.user.update({
+        where: { id: userId },
+        data: { totalLeaves: newLeaves, currentLevel: newLevel }
+      });
+
+      // Update league standing
+      const leagueEntry = await prisma.league.findFirst({ where: { userId } });
+      if (leagueEntry) {
+        await prisma.league.updateMany({
+          where: { userId },
+          data: {
+            leaves: Math.max(0, leagueEntry.leaves - leavesDeducted)
+          }
+        });
+      }
+
+      const freshUser = await prisma.user.findUnique({ where: { id: userId } });
+      if (freshUser) {
+        updatedUser = {
+          id: freshUser.id,
+          display_name: freshUser.displayName,
+          total_leaves: freshUser.totalLeaves,
+          current_level: freshUser.currentLevel,
+          postal_code: freshUser.postalCode,
+          created_at: freshUser.createdAt.toISOString()
+        };
+      }
+    }
+
+    res.json({
+      status: 'success',
+      message: 'Carbon event deleted successfully',
+      leavesDeducted,
+      user: updatedUser
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
