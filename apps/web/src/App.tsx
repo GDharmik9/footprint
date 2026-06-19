@@ -21,7 +21,6 @@ import {
   Gift,
   CheckCircle,
   RefreshCw,
-  Plus,
   Sparkles
 } from 'lucide-react';
 import './App.css';
@@ -152,13 +151,6 @@ export default function App() {
   const [simHousing, setSimHousing] = useState<'standard' | 'smart_thermostat' | 'solar'>('standard');
   const [simTransport, setSimTransport] = useState<'suv' | 'gas_car' | 'hybrid' | 'ev' | 'transit'>('gas_car');
   const [simDiet, setSimDiet] = useState<'meat' | 'balanced' | 'vegan'>('balanced');
-
-  // Manual Log event forms state
-  const [logCategory, setLogCategory] = useState<'transport' | 'housing' | 'food'>('transport');
-  const [logValue, setLogValue] = useState<number>(10);
-  const [logTransportMode, setLogTransportMode] = useState<'suv' | 'gas_car' | 'hybrid' | 'ev' | 'transit'>('gas_car');
-  const [logDietType, setLogDietType] = useState<'meat' | 'balanced' | 'vegan'>('balanced');
-  const [logHousingOption, setLogHousingOption] = useState<'standard' | 'smart_thermostat' | 'solar'>('standard');
 
   // Alert popup state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
@@ -876,84 +868,7 @@ export default function App() {
     }
   };
 
-  // Log manual carbon event
-  const logCarbonEvent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
 
-    try {
-      const token = localStorage.getItem('footprint_auth_token');
-      const response = await fetch(`${API_BASE}/carbon-events`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          userId: user.id,
-          category: logCategory,
-          source_provider: 'manual',
-          raw_value: logValue,
-          raw_unit: logCategory === 'housing' ? 'kWh' : logCategory === 'transport' ? 'miles' : 'meals',
-          transportMode: logTransportMode,
-          dietType: logDietType,
-          housingOption: logHousingOption
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        // Update user state
-        setUser(data.user);
-        // Refresh events list
-        fetchUser(user.id);
-        triggerToast(`Logged successfully! Earned +${data.leavesAwarded} Leaves.`, 'success');
-      } else {
-        throw new Error('Failed to log event');
-      }
-    } catch (err) {
-      // Offline fallback logger
-      let computedCO2 = 0;
-      if (logCategory === 'housing') {
-        computedCO2 = computeHousingCO2(logValue, logHousingOption);
-      } else if (logCategory === 'transport') {
-        computedCO2 = computeTransportCO2(logValue, logTransportMode);
-      } else if (logCategory === 'food') {
-        computedCO2 = computeFoodCO2(logValue, logDietType);
-      }
-
-      const newEvent: CarbonEvent = {
-        id: crypto.randomUUID(),
-        user_id: user.id,
-        category: logCategory,
-        source_provider: 'manual',
-        raw_value: logValue,
-        raw_unit: logCategory === 'housing' ? 'kWh' : logCategory === 'transport' ? 'miles' : 'meals',
-        computed_co2e_kg: computedCO2,
-        timestamp: new Date().toISOString()
-      };
-
-      setEvents([newEvent, ...events]);
-
-      const leavesAwarded = 15;
-      const newLeaves = user.total_leaves + leavesAwarded;
-      const newLevel = calculateLevel(newLeaves);
-      const updatedUser = {
-        ...user,
-        total_leaves: newLeaves,
-        current_level: newLevel
-      };
-      setUser(updatedUser);
-      setLeaderboard(prev => {
-        const updated = prev.map(m => m.userId === user.id ? { ...m, leaves: newLeaves, level: newLevel } : m);
-        return [...updated].sort((a, b) => b.leaves - a.leaves);
-      });
-      triggerToast(`Local Mode: Logged successfully! Earned +${leavesAwarded} Leaves.`, 'success');
-    }
-  };
-
-  // Toggle challenge progress
   const toggleChallengeDay = async (challengeType: 'cold-wash' | 'vampire-hunt', dayIndex: number, currentCompleted: boolean) => {
     if (!user) return;
 
@@ -2495,116 +2410,6 @@ export default function App() {
               </div>
             ))}
           </div>
-
-          {/* Ingest Actions Manual Logger */}
-          {/* <div className="panel-card glass-panel">
-            <h2 className="panel-title"><Plus size={20} /> Log Daily Micro-Action</h2>
-            <form onSubmit={logCarbonEvent} className="log-event-form">
-              <div className="input-group" style={{ margin: 0 }}>
-                <label htmlFor="category-select">Action Category</label>
-                <select
-                  id="category-select"
-                  className="input-field"
-                  value={logCategory}
-                  onChange={e => setLogCategory(e.target.value as any)}
-                >
-                  <option value="transport">Transit/Commute</option>
-                  <option value="housing">Utility/Electric Billing</option>
-                  <option value="food">Dietary Meals</option>
-                </select>
-              </div>
-
-              {logCategory === 'transport' && (
-                <div className="form-row">
-                  <div className="input-group" style={{ margin: 0 }}>
-                    <label htmlFor="transport-value">Distance (Miles)</label>
-                    <input
-                      id="transport-value"
-                      type="number"
-                      className="input-field"
-                      value={logValue}
-                      onChange={e => setLogValue(Number(e.target.value))}
-                    />
-                  </div>
-                  <div className="input-group" style={{ margin: 0 }}>
-                    <label htmlFor="transport-mode-select">Vehicle Type</label>
-                    <select
-                      id="transport-mode-select"
-                      className="input-field"
-                      value={logTransportMode}
-                      onChange={e => setLogTransportMode(e.target.value as any)}
-                    >
-                      <option value="suv">Gas SUV</option>
-                      <option value="gas_car">Gas Sedan</option>
-                      <option value="hybrid">Hybrid Vehicle</option>
-                      <option value="ev">Electric EV</option>
-                      <option value="transit">Public Transit/Bike</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {logCategory === 'housing' && (
-                <div className="form-row">
-                  <div className="input-group" style={{ margin: 0 }}>
-                    <label htmlFor="housing-value">Power Usage (kWh)</label>
-                    <input
-                      id="housing-value"
-                      type="number"
-                      className="input-field"
-                      value={logValue}
-                      onChange={e => setLogValue(Number(e.target.value))}
-                    />
-                  </div>
-                  <div className="input-group" style={{ margin: 0 }}>
-                    <label htmlFor="housing-option-select">Grid Setup</label>
-                    <select
-                      id="housing-option-select"
-                      className="input-field"
-                      value={logHousingOption}
-                      onChange={e => setLogHousingOption(e.target.value as any)}
-                    >
-                      <option value="standard">Standard Grid</option>
-                      <option value="smart_thermostat">Smart Nest Installed</option>
-                      <option value="solar">Solar Rooftop Setup</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              {logCategory === 'food' && (
-                <div className="form-row">
-                  <div className="input-group" style={{ margin: 0 }}>
-                    <label htmlFor="food-value">Total Servings / Meals</label>
-                    <input
-                      id="food-value"
-                      type="number"
-                      className="input-field"
-                      value={logValue}
-                      onChange={e => setLogValue(Number(e.target.value))}
-                    />
-                  </div>
-                  <div className="input-group" style={{ margin: 0 }}>
-                    <label htmlFor="diet-select">Diet Composition</label>
-                    <select
-                      id="diet-select"
-                      className="input-field"
-                      value={logDietType}
-                      onChange={e => setLogDietType(e.target.value as any)}
-                    >
-                      <option value="meat">Beef / Pork Heavy</option>
-                      <option value="balanced">Balanced / Poultry</option>
-                      <option value="vegan">Plant-based / Vegan</option>
-                    </select>
-                  </div>
-                </div>
-              )}
-
-              <button type="submit" className="btn-primary" style={{ padding: '10px' }}>
-                Register Log & Earn Leaves
-              </button>
-            </form>
-          </div> */}
 
           {/* Recent Activity & Footprint Logs Panel */}
           <ActivityLogs
