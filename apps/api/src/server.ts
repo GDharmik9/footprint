@@ -38,7 +38,7 @@ import {
   ArcadiaCallbackSchema 
 } from './validation.js';
 
-const app = express();
+export const app = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(helmet());
@@ -51,8 +51,8 @@ app.use(express.json());
 
 // Global Rate Limiter
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 200, // Limit each IP to 200 requests per `window`
+  windowMs: 15 * 60 * 1000,
+  limit: 200,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' }
@@ -60,20 +60,14 @@ const globalLimiter = rateLimit({
 
 // Strict Rate Limiter for auth, onboarding, and profile edits
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 30, // Limit each IP to 30 requests per `window`
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { error: 'Too many requests to this endpoint, please try again later.' }
 });
 
-// Apply global rate limiter to all routes
 app.use(globalLimiter);
-
-// Initialize Database before starting
-initDatabase().catch(err => {
-  console.error('Failed to initialize database:', err);
-});
 
 // User routes
 app.post('/api/users', authLimiter, validate(RegisterUserSchema), registerUser);
@@ -105,91 +99,82 @@ app.post('/api/integrations/arcadia/callback', authenticateToken, validate(Arcad
 // Admin routes
 app.post('/api/admin/leagues/evaluate', evaluateLeaguesAdmin);
 
-app.listen(PORT, () => {
-  console.log(`Footprint API server listening on http://localhost:${PORT}`);
-  startLeaguesEvaluationCron();
-});
-
-// Start Pub/Sub background listener
-startPubSubSubscriber(async (payload: any) => {
-  console.log('Pub/Sub subscriber processing payload:', payload);
-  const { 
-    userId, 
-    category, 
-    source_provider, 
-    raw_value, 
-    raw_unit, 
-    region_code, 
-    transportMode, 
-    dietType,
-    housingOption,
-    eventId,
-    timestamp
-  } = payload;
-
-  let computedCO2 = 0;
-  let customRegionKey = region_code || 'default';
-
-  if (category === 'housing') {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    const postalCode = user?.postalCode || '';
-    const gridFactor = await getGridCarbonFactor(postalCode);
-    customRegionKey = `custom-${postalCode}`;
-    GRID_FACTORS[customRegionKey] = gridFactor;
-
-    computedCO2 = computeHousingCO2(raw_value, housingOption || 'standard', customRegionKey);
-  } else if (category === 'transport') {
-    computedCO2 = computeTransportCO2(raw_value, transportMode || 'gas_car');
-  } else if (category === 'food') {
-    computedCO2 = computeFoodCO2(raw_value, dietType || 'balanced');
-  }
-
-  // Insert carbon event into database
-  await prisma.carbonEvent.create({
-    data: {
-      id: eventId,
-      userId,
-      category,
-      sourceProvider: source_provider || 'manual',
-      rawValue: raw_value,
-      rawUnit: raw_unit,
-      computedCo2eKg: computedCO2,
-      regionCode: customRegionKey,
-      timestamp: new Date(timestamp)
-    }
+// Only start listening when this file is the direct entry point (not imported by tests)
+const isMain = process.argv[1]?.endsWith('server.js') || process.argv[1]?.endsWith('server.ts');
+if (isMain) {
+  initDatabase().catch(err => {
+    console.error('Failed to initialize database:', err);
   });
 
-  // Award leaves
-  let leavesAwarded = 15;
-  if (category === 'transport' && (transportMode === 'ev' || transportMode === 'transit')) {
-    leavesAwarded += 15;
-  } else if (category === 'food' && dietType === 'vegan') {
-    leavesAwarded += 10;
-  } else if (category === 'housing' && housingOption === 'solar') {
-    leavesAwarded += 20;
-  }
+  app.listen(PORT, () => {
+    console.log(`Footprint API server listening on http://localhost:${PORT}`);
+    startLeaguesEvaluationCron();
+  });
 
-  // Increment leaves in league standings
-  await prisma.league.updateMany({
-    where: { userId },
-    data: {
-      leaves: {
-        increment: leavesAwarded
+  // Start Pub/Sub background listener
+  startPubSubSubscriber(async (payload: any) => {
+    console.log('Pub/Sub subscriber processing payload:', payload);
+    const {
+      userId, category, source_provider, raw_value, raw_unit,
+      region_code, transportMode, dietType, housingOption, eventId, timestamp
+    } = payload;
+
+    let computedCO2 = 0;
+    let customRegionKey = region_code || 'default';
+
+    if (category === 'housing') {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      const postalCode = user?.postalCode || '';
+      const gridFactor = await getGridCarbonFactor(postalCode);
+      customRegionKey = `custom-${postalCode}`;
+      GRID_FACTORS[customRegionKey] = gridFactor;
+      computedCO2 = computeHousingCO2(raw_value, housingOption || 'standard', customRegionKey);
+    } else if (category === 'transport') {
+      computedCO2 = computeTransportCO2(raw_value, transportMode || 'gas_car');
+    } else if (category === 'food') {
+      computedCO2 = computeFoodCO2(raw_value, dietType || 'balanced');
+    }
+
+    await prisma.carbonEvent.create({
+      data: {
+        id: eventId,
+        userId,
+        category,
+        sourceProvider: source_provider || 'manual',
+        rawValue: raw_value,
+        rawUnit: raw_unit,
+        computedCo2eKg: computedCO2,
+        regionCode: customRegionKey,
+        timestamp: new Date(timestamp)
       }
-    }
-  });
-
-  const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (user) {
-    const newLeaves = user.totalLeaves + leavesAwarded;
-    const newLevel = calculateLevel(newLeaves);
-    await prisma.user.update({
-      where: { id: userId },
-      data: { totalLeaves: newLeaves, currentLevel: newLevel }
     });
-  }
-  
-  console.log(`Subscriber processed event successfully: ${eventId}`);
-}).catch(err => {
-  console.error('Failed to start Pub/Sub subscriber:', err);
-});
+
+    let leavesAwarded = 15;
+    if (category === 'transport' && (transportMode === 'ev' || transportMode === 'transit')) {
+      leavesAwarded += 15;
+    } else if (category === 'food' && dietType === 'vegan') {
+      leavesAwarded += 10;
+    } else if (category === 'housing' && housingOption === 'solar') {
+      leavesAwarded += 20;
+    }
+
+    await prisma.league.updateMany({
+      where: { userId },
+      data: { leaves: { increment: leavesAwarded } }
+    });
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user) {
+      const newLeaves = user.totalLeaves + leavesAwarded;
+      const newLevel = calculateLevel(newLeaves);
+      await prisma.user.update({
+        where: { id: userId },
+        data: { totalLeaves: newLeaves, currentLevel: newLevel }
+      });
+    }
+
+    console.log(`Subscriber processed event successfully: ${eventId}`);
+  }).catch(err => {
+    console.error('Failed to start Pub/Sub subscriber:', err);
+  });
+}

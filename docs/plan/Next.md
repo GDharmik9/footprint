@@ -15,20 +15,24 @@ This sequence outline defines the immediate execution workflow to optimize Code 
    - [x] **Footprint Activity Logs feed**: Clean feed panel allowing logs search and secure deletion (cloud database syncing & local sandbox fallbacks).
    - [x] **AI Climate Coach Engine**: dynamic insights based on 30-day user telemetry recommending custom interactive micro-tasks.
 
-2. **Step A: Security Hardening & Input Verification**
-   - [ ] Install dependencies: `helmet`, `express-rate-limit`, `zod`.
-   - [ ] Apply `helmet` and rate limiting policies in `server.ts`.
-   - [ ] Create schemas using `zod` for all request bodies; reject invalid input with status `400`.
-   - [ ] Upgrade JWT storage flow to secure cookie handling.
+2. [x] **Step A: Security Hardening & Input Verification**
+   - [x] Install dependencies: `helmet`, `express-rate-limit`, `zod`, `cookie-parser`.
+   - [x] Apply `helmet`, rate limiting (global + auth-tier), and CORS credentials in `server.ts`.
+   - [x] Create Zod schemas for all request bodies; `validate()` middleware rejects invalid input with `400`.
+   - [x] Upgrade JWT storage flow to HTTP-only secure cookie with Authorization header fallback.
+   - [x] Add `POST /api/auth/logout` to clear cookie server-side.
+   - [x] Update all client `fetch()` calls with `credentials: 'include'` for cookie transport.
+   - [x] Add `handleLogout()` on frontend to clear cookie + reset React state.
 
 3. **Step B: Backend & Frontend Refactoring (Code Quality)**
    - [x] Extract controllers and services out of `server.ts`.
    - [x] Subdivide `App.tsx` into `/components` (e.g., `EcoSphere.tsx`, `ArchetypeForm.tsx`, `Simulator.tsx`, `RewardsHub.tsx`).
    - [x] Resolve TypeScript compiler warnings and type any fallback properties.
 
-4. **Step C: Test Coverage Implementation**
-   - [ ] Set up testing frameworks in `apps/web` (Vitest/React Testing Library) and `apps/api` (Supertest).
-   - [ ] Achieve >90% coverage for carbon math, core user endpoints, and dashboard widgets.
+4. [x] **Step C: Test Coverage Implementation**
+   - [x] Set up Vitest + React Testing Library in `apps/web`.
+   - [x] Set up Supertest + Vitest in `apps/api` for endpoint integration tests.
+   - [x] Achieve >90% coverage for carbon math, core user endpoints, and key UI components.
 
 5. **Step D: Accessibility Audit & Fixes**
    - [ ] Update `App.css` variables to ensure standard high-contrast options.
