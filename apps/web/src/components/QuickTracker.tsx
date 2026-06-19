@@ -125,6 +125,8 @@ export default function QuickTracker({ triggerQuickLog, loading }: QuickTrackerP
       <div style={{ margin: '16px 0 0 0', borderTop: '1px solid var(--border-color)' }} />
       <button
         type="button"
+        aria-expanded={showCustom}
+        aria-controls="custom-log-form"
         onClick={() => setShowCustom(v => !v)}
         style={{
           marginTop: '12px',
@@ -144,6 +146,7 @@ export default function QuickTracker({ triggerQuickLog, loading }: QuickTrackerP
       {/* Collapsible Custom Log Form */}
       {showCustom && (
         <form
+          id="custom-log-form"
           onSubmit={handleCustomLog}
           style={{
             marginTop: '14px',

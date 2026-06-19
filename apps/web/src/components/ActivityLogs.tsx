@@ -84,6 +84,7 @@ export default function ActivityLogs({
         <input
           type="text"
           placeholder="Search logs by category or details..."
+          aria-label="Search activity logs"
           className="input-field"
           style={{ padding: '8px 12px', fontSize: '13px' }}
           value={searchQuery}
@@ -184,6 +185,7 @@ export default function ActivityLogs({
                     }}
                     className="delete-activity-btn"
                     title="Delete activity log"
+                    aria-label={`Delete activity log: ${details} on ${dateStr}`}
                     disabled={loading}
                   >
                     <Trash2 size={14} />

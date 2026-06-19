@@ -5,7 +5,8 @@ interface EcoSphereProps {
 
 export default function EcoSphere({ level }: EcoSphereProps) {
   return (
-    <svg className="ecosphere-svg" viewBox="0 0 100 100">
+    <svg className="ecosphere-svg" viewBox="0 0 100 100" role="img" aria-label={`Interactive Eco-Sphere level ${level} representation`}>
+      <title>{`Eco-Sphere Level ${level}`}</title>
       <defs>
         <radialGradient id="sphereGrad" cx="50%" cy="50%" r="50%" fx="30%" fy="30%">
           <stop offset="0%" stopColor="hsl(150, 90%, 65%)" stopOpacity="0.4" />
