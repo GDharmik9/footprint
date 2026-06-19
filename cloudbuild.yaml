@@ -1,9 +1,9 @@
-# Google Cloud Build pipeline configuration
+# Google Cloud Build pipeline configuration steps:
 steps:
   # 1. Build the API container image
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-api'
-    args: 
+    args:
       - 'build'
       - '-t'
       - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:${COMMIT_SHA}'
@@ -16,7 +16,7 @@ steps:
   # 2. Build the Web Dashboard container image
   - name: 'gcr.io/cloud-builders/docker'
     id: 'build-web'
-    args: 
+    args:
       - 'build'
       - '-t'
       - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-web:${COMMIT_SHA}'
@@ -26,7 +26,23 @@ steps:
       - 'apps/web/Dockerfile'
       - '.'
 
-  # 3. Deploy the API to Cloud Run
+  # 3. Explicitly push the API images to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-api-image'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api'
+
+  # 4. Explicitly push the Web Dashboard images to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-web-image'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-web'
+
+  # 5. Deploy the API to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'deploy-api'
     entrypoint: 'gcloud'
@@ -43,7 +59,7 @@ steps:
       # Providing the Pub/Sub subscription name we verified earlier
       - '--set-env-vars=PUBSUB_SUBSCRIPTION=carbon-events-topic-sub'
 
-  # 4. Deploy the Web Dashboard to Cloud Run
+  # 6. Deploy the Web Dashboard to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: 'deploy-web'
     entrypoint: 'gcloud'
@@ -56,14 +72,18 @@ steps:
       - '--platform=managed'
       - '--allow-unauthenticated'
 
-# Push images to Artifact Registry
+# Default values for substitution variables
+substitutions:
+  _AR_LOCATION: 'us-central1'
+  _AR_REPOSITORY: 'footprint'
+
+# Direct streaming option to ensure logs are handled without bucket errors
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+# Safe keeping for artifact tracing after a successful run
 images:
   - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:${COMMIT_SHA}'
   - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-api:latest'
   - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-web:${COMMIT_SHA}'
   - '${_AR_LOCATION}-docker.pkg.dev/${PROJECT_ID}/${_AR_REPOSITORY}/footprint-web:latest'
-
-# Default values for substitution variables
-substitutions:
-  _AR_LOCATION: 'us-central1'
-  _AR_REPOSITORY: 'footprint'
