@@ -74,18 +74,25 @@ npm run dev
 
 ---
 
-## 💾 Database Configuration
+## 💾 Database Configuration & Migrations
 
 The backend Express application supports two modes:
-1. **PostgreSQL Mode**: Connects using the `DATABASE_URL` environment variable.
-2. **Local Fallback Mode**: If PostgreSQL connection fails or isn't configured, the system writes to [`apps/api/footprint_dev_db.json`](file:///d:/new_era/Hackthon/footprint/apps/api/footprint_dev_db.json) automatically.
+1. **PostgreSQL Mode (New)**: Managed via **Prisma ORM** connecting to a PostgreSQL instance (such as local Docker Postgres or GCP Cloud SQL).
+2. **Local Fallback Mode (Previous)**: If no database URL is supplied or connection fails, the application previously relied on writing directly to the [`apps/api/footprint_dev_db.json`](file:///d:/new_era/Hackthon/footprint/apps/api/footprint_dev_db.json) file database.
 
-To configure PostgreSQL:
-- Create a database named `footprint`.
-- Pass `DATABASE_URL` in your environment variables:
-  ```bash
-  DATABASE_URL=postgresql://<username>:<password>@localhost:5432/footprint
-  ```
+### Setting Up PostgreSQL with Docker
+To spin up a local PostgreSQL instance:
+```bash
+docker-compose up -d
+```
+This launches a PostgreSQL container on port `5432` with username/password: `postgres`.
+
+### Applying Database Schemas (Prisma)
+With PostgreSQL running, configure your `.env` connection string (`DATABASE_URL="postgresql://postgres:postgres@localhost:5432/footprint?schema=public"`) and push your schemas:
+```bash
+npx prisma db push --schema=apps/api/prisma/schema.prisma
+```
+This registers the tables for `User`, `CarbonEvent`, `Challenge`, `Voucher`, and `League` models.
 
 ---
 

@@ -31,6 +31,18 @@ import './App.css';
 
 const API_BASE = 'http://localhost:3001/api';
 
+const COUNTRY_CONFIGS: Record<
+  string,
+  { name: string; numericOnly: boolean; pattern: string; placeholder: string; zipLength?: number }
+> = {
+  us: { name: 'United States', numericOnly: true, pattern: '^[0-9]{5}$', placeholder: 'Enter 5-digit ZIP code (e.g. 90210)', zipLength: 5 },
+  in: { name: 'India', numericOnly: true, pattern: '^[0-9]{6}$', placeholder: 'Enter 6-digit PIN code (e.g. 110001)', zipLength: 6 },
+  de: { name: 'Germany', numericOnly: true, pattern: '^[0-9]{5}$', placeholder: 'Enter 5-digit postal code (e.g. 10115)', zipLength: 5 },
+  fr: { name: 'France', numericOnly: true, pattern: '^[0-9]{5}$', placeholder: 'Enter 5-digit postal code (e.g. 75001)', zipLength: 5 },
+  ca: { name: 'Canada', numericOnly: false, pattern: '^[A-Za-z][0-9][A-Za-z]\\s?[0-9][A-Za-z][0-9]$', placeholder: 'Enter postal code (e.g. K1A 0B1)' },
+  gb: { name: 'United Kingdom', numericOnly: false, pattern: '^[A-Za-z0-9\\s]{5,8}$', placeholder: 'Enter postal code (e.g. SW1A 1AA)' }
+};
+
 // Helper: Calculate user level from leaves
 function calculateLevel(leaves: number): number {
   if (leaves < 100) return 1;
@@ -48,8 +60,33 @@ export default function App() {
 
   // Onboarding Form inputs
   const [displayName, setDisplayName] = useState('');
+  const [country, setCountry] = useState('us');
   const [postalCode, setPostalCode] = useState('');
   const [housingArchetype, setHousingArchetype] = useState<'apartment' | 'townhouse' | 'family'>('townhouse');
+
+  // Reset postal code when country changes to avoid validation mismatch
+  useEffect(() => {
+    setPostalCode('');
+  }, [country]);
+
+  // Restrict postal code input values based on country's numeric constraints
+  const handleChangePostalCode = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    const config = COUNTRY_CONFIGS[country];
+    if (config.numericOnly) {
+      // Only keep digit characters
+      const numericVal = val.replace(/\D/g, '');
+      if (config.zipLength && numericVal.length > config.zipLength) {
+        return;
+      }
+      setPostalCode(numericVal);
+    } else {
+      // For alphanumeric, let's limit length to 10 characters max
+      if (val.length <= 10) {
+        setPostalCode(val);
+      }
+    }
+  };
   const [dietArchetype, setDietArchetype] = useState<'vegan' | 'balanced' | 'meat'>('balanced');
   const [commuteArchetype, setCommuteArchetype] = useState<'transit' | 'hybrid' | 'gas'>('hybrid');
 
@@ -276,6 +313,61 @@ export default function App() {
   const handleOnboarding = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!displayName) return;
+
+    const cleanCode = postalCode.trim();
+    if (cleanCode) {
+      const config = COUNTRY_CONFIGS[country];
+      const localRegex = new RegExp(config.pattern);
+      
+      // Local sanity check on pattern first
+      if (!localRegex.test(cleanCode)) {
+        triggerToast(`Please enter a valid postal code format for ${config.name}.`, 'error');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        // Query external APIs to verify the postal code is real
+        const apiCode = cleanCode.replace(/\s+/g, '').toLowerCase();
+        let isValid = false;
+
+        if (country === 'in') {
+          // Use official Indian Postal PIN Code API for 100% complete coverage
+          const url = `https://api.postalpincode.in/pincode/${apiCode}`;
+          console.log(`Verifying Indian PIN code ${cleanCode} via official API: ${url}`);
+          const response = await fetch(url);
+          if (response.ok) {
+            const data = await response.json();
+            if (Array.isArray(data) && data[0]?.Status === 'Success') {
+              isValid = true;
+            }
+          }
+        } else {
+          // Use Zippopotam.us for other supported countries
+          const url = `https://api.zippopotam.us/${country.toUpperCase()}/${apiCode}`;
+          console.log(`Verifying postal code ${cleanCode} via Zippopotam API: ${url}`);
+          const response = await fetch(url);
+          if (response.ok) {
+            isValid = true;
+          }
+        }
+
+        if (!isValid) {
+          triggerToast(`Invalid postal code "${cleanCode}" for ${config.name}. Please enter a valid one.`, 'error');
+          setLoading(false);
+          return;
+        }
+        
+      } catch (err) {
+        console.warn('External postal code verification API failed. Falling back to local pattern check.', err);
+        // Robust fallback: if API fails (network offline), we trust the regex format match
+        if (!localRegex.test(cleanCode)) {
+          triggerToast(`Please enter a valid postal code format for ${config.name}.`, 'error');
+          setLoading(false);
+          return;
+        }
+      }
+    }
 
     setLoading(true);
     const archetype: ArchetypeOptions = {
@@ -941,13 +1033,30 @@ export default function App() {
             </div>
 
             <div className="input-group">
-              <label htmlFor="zip-input">Postal/Zip Code</label>
+              <label htmlFor="country-select">Country</label>
+              <select
+                id="country-select"
+                value={country}
+                onChange={e => setCountry(e.target.value)}
+                className="input-field"
+                style={{ appearance: 'none', background: 'var(--bg-dark)', color: 'var(--text-main)', cursor: 'pointer' }}
+              >
+                {Object.entries(COUNTRY_CONFIGS).map(([code, config]) => (
+                  <option key={code} value={code}>
+                    {config.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="input-group">
+              <label htmlFor="zip-input">Postal / Zip Code</label>
               <input
                 id="zip-input"
                 type="text"
-                placeholder="To fetch local grid carbon factors (e.g. 94103)"
+                placeholder={COUNTRY_CONFIGS[country].placeholder}
                 value={postalCode}
-                onChange={e => setPostalCode(e.target.value)}
+                onChange={handleChangePostalCode}
                 className="input-field"
               />
             </div>

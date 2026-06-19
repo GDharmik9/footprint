@@ -1,6 +1,6 @@
 # 🎨 Frontend Web Application (`apps/web`)
 
-This document provides detailed documentation for the **Footprint** client application—a React, Vite, and TypeScript dashboard featuring custom HSL styling and micro-animations.
+This document provides detailed documentation for the **Footprint** client application—a React, Vite, and TypeScript dashboard featuring custom HSL styling, micro-animations, JWT state authorization, and third-party frontend SDK integrations.
 
 ---
 
@@ -8,9 +8,9 @@ This document provides detailed documentation for the **Footprint** client appli
 
 The frontend codebase is located under [`apps/web`](file:///d:/new_era/Hackthon/footprint/apps/web):
 - **`src/main.tsx`**: Entry point bootstrapping React into the browser.
-- **`src/App.tsx`**: Holds the core state, navigation, form inputs, simulator sliders, and dashboard views.
-- **`src/App.css`**: Styling directives, including Glassmorphism panels, animations, and typography configurations.
-- **`src/index.css`**: Configures global CSS rules, tailwind directives (if imported), and layout frameworks.
+- **`src/App.tsx`**: Holds the core state, navigation, form inputs, simulator sliders, dashboard views, and HTTP client requests.
+- **`src/App.css`**: Styling directives, including Glassmorphism panels, HSL color tokens, animations, and typography configurations.
+- **`src/index.css`**: Global CSS rules and baseline layout configurations.
 
 ---
 
@@ -41,35 +41,46 @@ To project a premium, state-of-the-art aesthetic, the app implements a custom HS
 
 ---
 
-## 🧱 Primary Dashboard Components
+## 🧱 Primary Dashboard Components & Integrations
 
 ### 1. 90-Second Lifestyle Archetype Questionnaire
-- **Purpose**: Seeding baseline emission estimations for new user profiles.
 - **Selections**:
   - **Housing**: `City Apartment` | `Suburban Townhouse` | `Single Family Home`
   - **Diet**: `Vegan/Plant-Forward` | `Balanced/Poultry` | `Meat-Heavy/Beef`
   - **Commute**: `Transit/Bike` | `Hybrid/EV` | `Gas Vehicle/SUV`
 - **Action**: Generates a standard baseline metric using `@footprint/carbon-math`'s baseline parameters.
 
-### 2. Micro-Action Carbon Simulator
+### 2. Live Frontend Connections & SDKs (New)
+- **Radar.io SDK**:
+  - Initialized on application mount.
+  - When transit events are logged, the client calls `Radar.trackOnce()` to dynamically fetch location telemetry before registering the activity.
+- **Arcadia Connect Widget**:
+  - Loads the Arcadia OAuth connect script dynamically.
+  - Renders the utility billing connection portal within the client dashboard.
+- **Session Security (JWT)**:
+  - On onboarding, the client receives a signed token which it persists in `localStorage` under `footprint_auth_token`.
+  - Attaches `Authorization: Bearer <token>` to all subsequent request headers targeting secured backend paths.
+- **Previous/Simulated Details**: In the initial prototype, webhooks and integrations were simulated using local browser events. Endpoints trusted client-provided user IDs without token validation or HMAC signatures.
+
+### 3. Micro-Action Carbon Simulator
 - **Interactive UI**: Users adjust sliders or click swap toggles (e.g. standard grid vs solar panels, gas car vs EV, vegan meal swaps) to simulate a reduction trajectory.
 - **Real-Time Projection**: Calculates real-time carbon reduction estimates and updates chart bars.
 
-### 3. Evolving SVG Eco-Sphere
+### 4. Evolving SVG Eco-Sphere
 - **Design**: A clean vector sphere that evolves visually as the user accumulates Leaves (XP).
 - **Levels Evolving Loop**:
   - **Level 1**: Echos a single soil plot with a small sprout.
   - **Level 2**: Sprout grows into leafy stems.
-  - **Level 3**: Evolves into a young birch tree with green leaves.
-  - **Level 4**: Esembles a mature tree with surrounding flora.
+  - **Level 3**: Evolves into a young birch tree.
+  - **Level 4**: Resembles a mature tree.
   - **Level 5+**: Adds animated floating leaves and flowers to reflect high achievements.
 
-### 4. Rewards Hub
-- **Purpose**: Let users spend points to fund certified B-Corp vouchers.
+### 5. Rewards Hub
 - **Redemption Cards**:
   - **15% Off Oatly Milk Voucher** (Cost: 150 Leaves)
   - **Complimentary Arcadia Smart Plug** (Cost: 500 Leaves)
   - **Eden Projects Tree Planting** (Cost: 100 Leaves)
+- **Fulfillment**: Displays tree-planting receipts or dynamic coupon codes returned from active API requests.
 
 ---
 

@@ -29,5 +29,8 @@
     "prisma": "^5.15.0",
     "tsc-watch": "^6.2.0",
     "typescript": "^5.4.5"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   }
 }

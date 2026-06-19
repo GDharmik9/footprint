@@ -4,6 +4,27 @@ This document establishes the step-by-step sequence of development tasks require
 
 ---
 
+## 🔍 Post-Deployment & Production Launch Actions
+
+Following the completion of the 8 core development steps, the remaining tasks to achieve 100% live deployment readiness include:
+
+### 🔑 1. Secret Configuration (GCP Secret Manager) (Completed)
+- [x] Set database connection parameters in the `DATABASE_URL` secret.
+- [x] Generate and set the master `JWT_SECRET` key for route authorization.
+- [x] Connect production API keys for external services:
+  - `ELECTRICITY_MAPS_API_KEY` (Grid factors)
+  - `RADAR_WEBHOOK_SECRET` (Transit webhooks HMAC verification)
+  - `NEST_ENTERPRISE_ID` & `NEST_DEVELOPER_ACCESS_TOKEN` (Thermostat checking)
+  - `EDEN_API_KEY` (Reforest tree plantings)
+  - `SHOPIFY_ACCESS_TOKEN` & `SHOPIFY_SHOP_NAME` (B-Corp discount coupons)
+
+### 💻 2. Frontend-Backend Gap Resolutions
+- [x] Add format validation (regex matching) on the client postal code input field in `App.tsx` before dispatching.
+- [ ] Add a dashboard action button on the client UI to manually trigger Nest thermostat updates.
+- [ ] Expose an administrator settings page to trigger the manual leagues reset endpoint (`POST /api/admin/leagues/evaluate`).
+
+---
+
 ## 📋 Sequence of Action Items
 
 ### 📍 Step 1: Write Core Mathematical Tests (Completed)
@@ -39,11 +60,11 @@ This document establishes the step-by-step sequence of development tasks require
   - [x] **Google Nest API**: Set up Google Home Device Access integration to fetch live thermostat status.
   - [x] **Radar.io SDK**: Initialize and configure the Radar.io SDK on client devices to track transit metrics.
 
-### 📍 Step 6: Deploy Real Competitive Leagues Standings
+### 📍 Step 6: Deploy Real Competitive Leagues Standings (Completed)
 - **Objective**: Replace randomized competitor algorithms with real user groupings.
 - **Action Items**:
-  1. Write SQL query helpers to group active users into 30-person league tables.
-  2. Implement weekly cron routines to manage user standings, promotions/demotions, and weekly streak evaluations.
+  - [x] Write SQL query helpers to group active users into 30-person league tables.
+  - [x] Implement weekly cron routines to manage user standings, promotions/demotions, and weekly streak evaluations.
 
 ### 📍 Step 7: Integrate Reward Fulfillment Integrations (Completed)
 - **Objective**: Provide users with actual, validated rewards.

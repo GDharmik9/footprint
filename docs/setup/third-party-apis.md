@@ -83,3 +83,12 @@ The **Footprint** platform relies on five external integrations to automate carb
   - When a user redeems leaves for tree planting, the backend calls the Eden Projects API.
   - Eden Projects processes the transaction and returns a tracking receipt link.
   - **Action**: A transaction voucher is generated and displayed on the user's dashboard.
+  - **Previous/Simulated Details**: In the initial simulation, vouchers were created with hardcoded descriptions. The updated implementation executes POST requests to `https://api.edenprojects.org/v1/plantings` (falling back to a realistic simulated receipt URL if `EDEN_API_KEY` is not set).
+
+### 6. Shopify Admin API (Corporate Sponsor Rewards Inventory)
+- **Purpose**: Generates and retrieves dynamic discount coupon codes for B-Corp sponsorships.
+- **Workflow**:
+  - When a user redeems leaves for sponsor-sponsored discounts, the backend calls the Shopify Price Rules & Discount Codes API.
+  - Unique codes (e.g., `OATLY-150-XXXXXX`) are dynamically registered inside the vendor Shopify store.
+  - **Action**: The user retrieves the coupon code on their dashboard.
+  - **Previous/Simulated Details**: Previously, static pre-defined coupon codes (like `OATLY-15-HEX`) were generated locally. The updated implementation interacts with the Shopify REST Price Rule Discount endpoint, falling back to a structured local generator when credentials (`SHOPIFY_ACCESS_TOKEN`, `SHOPIFY_SHOP_NAME`) are not supplied.

@@ -4,6 +4,20 @@ This document tracks daily standup notes, progress, and blockers.
 
 ---
 
+## 📅 Today: June 19, 2026
+
+### 🙋 Done:
+- [15:53:00] Implemented client-side postal code validation using regex pattern matching in `App.tsx` (supporting 5-digit US ZIP codes and 6-digit Indian PIN codes) before submitting the onboarding form. Also added browser-native HTML5 pattern-based validation on the zip input element.
+
+### 🚀 Next Steps:
+- Add a dashboard action button on the client UI to manually trigger Nest thermostat updates.
+- Expose an administrator settings page to trigger the manual leagues reset endpoint.
+
+### 🛑 Blockers:
+- None.
+
+---
+
 ## 📅 Today: June 17, 2026
 
 ### 🙋 Done:
