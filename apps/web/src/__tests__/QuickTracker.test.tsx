@@ -47,7 +47,7 @@ describe('QuickTracker component', () => {
     render(<QuickTracker triggerQuickLog={mockTriggerQuickLog} loading={true} />);
     const buttons = screen.getAllByRole('button');
     // All preset buttons should be disabled
-    const presetButtons = buttons.filter(b => b.getAttribute('disabled') !== null);
+    const presetButtons = buttons.filter((b: any) => b.getAttribute('disabled') !== null);
     expect(presetButtons.length).toBeGreaterThan(0);
   });
 
