@@ -202,47 +202,48 @@ export default function App() {
   const fetchUser = async (userId: string) => {
     setLoading(true);
     const token = localStorage.getItem('footprint_auth_token');
-    const headers = {
+    const authHeaders = {
       'Authorization': `Bearer ${token}`
     };
+    const fetchOpts = { headers: authHeaders, credentials: 'include' as RequestCredentials };
     try {
       // 1. Fetch User status
-      const userRes = await fetch(`${API_BASE}/users/${userId}`, { headers });
+      const userRes = await fetch(`${API_BASE}/users/${userId}`, fetchOpts);
       if (!userRes.ok) throw new Error('User not found on server');
       const userData = await userRes.json();
       setUser(userData);
       localStorage.setItem('footprint_user_id', userId);
 
       // 2. Fetch history
-      const historyRes = await fetch(`${API_BASE}/carbon-events/${userId}`, { headers });
+      const historyRes = await fetch(`${API_BASE}/carbon-events/${userId}`, fetchOpts);
       if (historyRes.ok) {
         const historyData = await historyRes.json();
         setEvents(historyData);
       }
 
       // 3. Fetch active challenges
-      const challengesRes = await fetch(`${API_BASE}/challenges/${userId}`, { headers });
+      const challengesRes = await fetch(`${API_BASE}/challenges/${userId}`, fetchOpts);
       if (challengesRes.ok) {
         const challengesData = await challengesRes.json();
         setChallenges(challengesData);
       }
 
       // 4. Fetch vouchers
-      const vouchersRes = await fetch(`${API_BASE}/vouchers/${userId}`, { headers });
+      const vouchersRes = await fetch(`${API_BASE}/vouchers/${userId}`, fetchOpts);
       if (vouchersRes.ok) {
         const vouchersData = await vouchersRes.json();
         setVouchers(vouchersData);
       }
 
       // 5. Fetch Eco-Leagues leaderboard
-      const leagueRes = await fetch(`${API_BASE}/leagues/${userId}`, { headers });
+      const leagueRes = await fetch(`${API_BASE}/leagues/${userId}`, fetchOpts);
       if (leagueRes.ok) {
         const leagueData = await leagueRes.json();
         setLeaderboard(leagueData);
       }
 
       // 6. Fetch personalized AI insights
-      const insightsRes = await fetch(`${API_BASE}/users/${userId}/insights`, { headers });
+      const insightsRes = await fetch(`${API_BASE}/users/${userId}/insights`, fetchOpts);
       if (insightsRes.ok) {
         const insightsData = await insightsRes.json();
         setCoachInsights(insightsData.insights);
@@ -257,6 +258,33 @@ export default function App() {
     }
   };
 
+  // Logout: clear cookie on server and reset client state
+  const handleLogout = async () => {
+    try {
+      await fetch(`${API_BASE}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch {
+      // Ignore network errors — still clear local state
+    }
+    localStorage.removeItem('footprint_auth_token');
+    localStorage.removeItem('footprint_user_id');
+    localStorage.removeItem('footprint_baseline');
+    localStorage.removeItem('footprint_calibration_completed');
+    setUser(null);
+    setBaseline(null);
+    setEvents([]);
+    setChallenges([]);
+    setVouchers([]);
+    setLeaderboard([]);
+    setCoachInsights([]);
+    setRecommendations([]);
+    setIsCalibrating(true);
+    setCalibrationStep(1);
+    triggerToast('You have been logged out.', 'info');
+  };
+
   // Delete a carbon event log (online or offline fallback)
   const deleteCarbonEvent = async (eventId: string) => {
     setLoading(true);
@@ -266,6 +294,7 @@ export default function App() {
 
       const response = await fetch(`${API_BASE}/carbon-events/${eventId}`, {
         method: 'DELETE',
+        credentials: 'include',
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -536,6 +565,7 @@ export default function App() {
 
       const response = await fetch(`${API_BASE}/users`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           display_name: randName,
@@ -591,6 +621,7 @@ export default function App() {
       const token = localStorage.getItem('footprint_auth_token');
       const response = await fetch(`${API_BASE}/users/${user.id}`, {
         method: 'PATCH',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -666,6 +697,7 @@ export default function App() {
       const token = localStorage.getItem('footprint_auth_token');
       const response = await fetch(`${API_BASE}/carbon-events`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -813,6 +845,7 @@ export default function App() {
     try {
       const response = await fetch(`${API_BASE}/users`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           display_name: displayName,
@@ -852,6 +885,7 @@ export default function App() {
       const token = localStorage.getItem('footprint_auth_token');
       const response = await fetch(`${API_BASE}/carbon-events`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -927,6 +961,7 @@ export default function App() {
       const token = localStorage.getItem('footprint_auth_token');
       const response = await fetch(`${API_BASE}/challenges/progress`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -1017,6 +1052,7 @@ export default function App() {
       const token = localStorage.getItem('footprint_auth_token');
       const response = await fetch(`${API_BASE}/sponsors/redeem`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -1078,16 +1114,6 @@ export default function App() {
     }
   };
 
-  // Reset current session
-  const resetSession = () => {
-    localStorage.removeItem('footprint_user_id');
-    localStorage.removeItem('footprint_auth_token');
-    localStorage.removeItem('footprint_baseline');
-    setUser(null);
-    setBaseline(null);
-    setEvents([]);
-    setVouchers([]);
-  };
 
   // Trigger Radar Webhook (with actual location tracking)
   const triggerRadarWebhook = async () => {
@@ -1103,6 +1129,7 @@ export default function App() {
 
       const response = await fetch(`${API_BASE}/webhooks/radar`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.id,
@@ -1168,6 +1195,7 @@ export default function App() {
             const token = localStorage.getItem('footprint_auth_token');
             const res = await fetch(`${API_BASE}/integrations/arcadia/callback`, {
               method: 'POST',
+              credentials: 'include',
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
@@ -1180,6 +1208,7 @@ export default function App() {
               // Trigger utility webhook ingestion
               await fetch(`${API_BASE}/webhooks/arcadia`, {
                 method: 'POST',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   userId: user.id,
@@ -1205,6 +1234,7 @@ export default function App() {
     try {
       const response = await fetch(`${API_BASE}/webhooks/arcadia`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.id,
@@ -1258,6 +1288,7 @@ export default function App() {
     try {
       const response = await fetch(`${API_BASE}/webhooks/nest`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user.id
@@ -1540,7 +1571,7 @@ export default function App() {
           <div className="level-badge">
             Level {user.current_level}
           </div>
-          <button onClick={resetSession} className="btn-secondary" style={{ padding: '6px 10px' }}>
+          <button onClick={handleLogout} className="btn-secondary" title="Logout" style={{ padding: '6px 10px' }}>
             <RefreshCw size={14} />
           </button>
         </div>

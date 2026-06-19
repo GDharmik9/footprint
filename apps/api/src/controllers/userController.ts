@@ -114,6 +114,14 @@ export async function registerUser(req: any, res: Response): Promise<void> {
       // Sign JWT token
       const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
 
+      // Set JWT token in an HTTP-only secure cookie
+      res.cookie('footprint_auth_token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      });
+
       res.status(201).json({
         user: {
           id: createdUser.id,
@@ -310,4 +318,14 @@ export async function getUserInsights(req: AuthenticatedRequest, res: Response):
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
+}
+
+// 2d. POST /api/auth/logout - Clear user authentication cookie (Open/Secured)
+export async function logoutUser(req: any, res: Response): Promise<void> {
+  res.clearCookie('footprint_auth_token', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict'
+  });
+  res.json({ status: 'success', message: 'Logged out successfully' });
 }
