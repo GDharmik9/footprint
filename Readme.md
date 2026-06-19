@@ -125,6 +125,12 @@ The tracking backend aggregates footprints using three third-party API pillars:
 5. **B-Corp Directory Services**: Verifies corporate sponsors and checks ESG compliance.
 6. **Eden Projects Webhooks**: Direct escrow drawdowns to fund tree plantings on user redemptions.
 
+## 💡 Assumptions
+
+- **Edge Computing Validation**: Assumed that the Radar.io SDK cleanly filters invalid transit categories locally before triggering webhooks.
+- **Offline Resilience**: Assumed users may experience network drops; simulated sandbox mode fallback ensures continuous footprint estimation.
+- **Data Availability**: Assumed grid factor availability from eGRID/ElectricityMaps for all postal codes; fallback to baseline averages is utilized otherwise.
+
 ---
 
 ## 🏁 Getting Started
