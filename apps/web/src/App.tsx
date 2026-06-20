@@ -16,20 +16,44 @@ import {
 import Radar from 'radar-sdk-js';
 import {
   Leaf,
-  Activity,
-  Calendar,
-  Gift,
-  CheckCircle,
   RefreshCw,
-  Sparkles
+  CheckCircle
 } from 'lucide-react';
 import './App.css';
-import EcoSphere from './components/EcoSphere';
 import QuickTracker from './components/QuickTracker';
 import Simulator from './components/Simulator';
 import ActivityLogs from './components/ActivityLogs';
+import OnboardingFlow from './components/OnboardingFlow';
+import CalibrationSurvey from './components/CalibrationSurvey';
+import CarbonTrajectory from './components/CarbonTrajectory';
+import AICoach from './components/AICoach';
+import CarbonTrend from './components/CarbonTrend';
+import TelemetrySimulator from './components/TelemetrySimulator';
+import CommunityLeaderboard from './components/CommunityLeaderboard';
+import SponsorRewards from './components/SponsorRewards';
+import HabitChallenges from './components/HabitChallenges';
 
 const API_BASE = 'http://localhost:3001/api';
+
+export interface LeaderboardMember {
+  id: string;
+  userId: string;
+  username: string;
+  level: number;
+  leaves: number;
+}
+
+export interface Recommendation {
+  id: string;
+  title: string;
+  description: string;
+  category: 'housing' | 'transport' | 'food';
+  type: string;
+  value: number;
+  unit: string;
+  impactKg: number;
+  rewardLeaves: number;
+}
 
 const COUNTRY_CONFIGS: Record<
   string,
@@ -158,9 +182,9 @@ export default function App() {
 
   // Eco-Leagues Leaderboard and Tab state
   const [ecoSphereTab, setEcoSphereTab] = useState<'sphere' | 'league'>('sphere');
-  const [leaderboard, setLeaderboard] = useState<unknown[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardMember[]>([]);
   const [coachInsights, setCoachInsights] = useState<string[]>([]);
-  const [recommendations, setRecommendations] = useState<unknown[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 
   // Webhook simulator state
   const [simRadarDistance, setSimRadarDistance] = useState<number>(12);
@@ -659,13 +683,13 @@ export default function App() {
   // Calibration survey progressive steps handler
   const nextCalibrationStep = (stepPayload?: Record<string, unknown>) => {
     if (stepPayload) {
-      if (stepPayload.housing) setHousingArchetype(stepPayload.housing);
-      if (stepPayload.diet) setDietArchetype(stepPayload.diet);
-      if (stepPayload.commute) setCommuteArchetype(stepPayload.commute);
+      if (stepPayload.housing) setHousingArchetype(stepPayload.housing as 'apartment' | 'townhouse' | 'family');
+      if (stepPayload.diet) setDietArchetype(stepPayload.diet as 'vegan' | 'balanced' | 'meat');
+      if (stepPayload.commute) setCommuteArchetype(stepPayload.commute as 'transit' | 'hybrid' | 'gas');
 
-      const nextHousing = stepPayload.housing || housingArchetype;
-      const nextDiet = stepPayload.diet || dietArchetype;
-      const nextCommute = stepPayload.commute || commuteArchetype;
+      const nextHousing = (stepPayload.housing as 'apartment' | 'townhouse' | 'family') || housingArchetype;
+      const nextDiet = (stepPayload.diet as 'vegan' | 'balanced' | 'meat') || dietArchetype;
+      const nextCommute = (stepPayload.commute as 'transit' | 'hybrid' | 'gas') || commuteArchetype;
 
       handleProgressiveProfileUpdate({
         archetype: {
@@ -1315,154 +1339,23 @@ export default function App() {
   // Render Onboarding Screen if user is not set
   if (!user) {
     return (
-      <div className="app-container">
-        <header>
-          <div className="logo"><Leaf size={24} color="hsl(150, 90%, 60%)" /> Footprint</div>
-        </header>
-
-        <div className="onboarding-container">
-          <h1 className="onboarding-title">Replace carbon guilt with action.</h1>
-          <p className="onboarding-subtitle">Estimate your context-aware environmental baseline in 90 seconds.</p>
-
-          <form onSubmit={handleOnboarding} className="onboarding-card glass-panel">
-            <div className="input-group">
-              <label htmlFor="name-input">Display Name</label>
-              <input
-                id="name-input"
-                type="text"
-                placeholder="How should we call you?"
-                value={displayName}
-                onChange={e => setDisplayName(e.target.value)}
-                className="input-field"
-                required
-              />
-            </div>
-
-            <div className="input-group">
-              <label htmlFor="country-select">Country</label>
-              <select
-                id="country-select"
-                value={country}
-                onChange={e => setCountry(e.target.value)}
-                className="input-field"
-                style={{ appearance: 'none', background: 'var(--bg-dark)', color: 'var(--text-main)', cursor: 'pointer' }}
-              >
-                {Object.entries(COUNTRY_CONFIGS).map(([code, config]) => (
-                  <option key={code} value={code}>
-                    {config.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="input-group">
-              <label htmlFor="zip-input">Postal / Zip Code</label>
-              <input
-                id="zip-input"
-                type="text"
-                placeholder={COUNTRY_CONFIGS[country].placeholder}
-                value={postalCode}
-                onChange={handleChangePostalCode}
-                className="input-field"
-              />
-            </div>
-
-            <div className="archetype-section">
-              <h3>1. Housing Infrastructure</h3>
-              <div className="grid-selector">
-                <div
-                  className={`selector-option ${housingArchetype === 'apartment' ? 'selected' : ''}`}
-                  onClick={() => setHousingArchetype('apartment')}
-                >
-                  <span className="icon">🏢</span>
-                  <span className="option-label">City Apartment</span>
-                  <span className="option-desc">Shared walls, low heating requirements</span>
-                </div>
-                <div
-                  className={`selector-option ${housingArchetype === 'townhouse' ? 'selected' : ''}`}
-                  onClick={() => setHousingArchetype('townhouse')}
-                >
-                  <span className="icon">🏡</span>
-                  <span className="option-label">Townhouse</span>
-                  <span className="option-desc">Moderate spacing and utility use</span>
-                </div>
-                <div
-                  className={`selector-option ${housingArchetype === 'family' ? 'selected' : ''}`}
-                  onClick={() => setHousingArchetype('family')}
-                >
-                  <span className="icon">🏰</span>
-                  <span className="option-label">Single Family</span>
-                  <span className="option-desc">Detached setup, high heating/cooling</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="archetype-section">
-              <h3>2. Commute & Transit</h3>
-              <div className="grid-selector">
-                <div
-                  className={`selector-option ${commuteArchetype === 'transit' ? 'selected' : ''}`}
-                  onClick={() => setCommuteArchetype('transit')}
-                >
-                  <span className="icon">🚲</span>
-                  <span className="option-label">Transit / Bike</span>
-                  <span className="option-desc">Subway, bus, cycle, walking options</span>
-                </div>
-                <div
-                  className={`selector-option ${commuteArchetype === 'hybrid' ? 'selected' : ''}`}
-                  onClick={() => setCommuteArchetype('hybrid')}
-                >
-                  <span className="icon">🔌</span>
-                  <span className="option-label">Hybrid / EV</span>
-                  <span className="option-desc">Partially electrified or highly efficient</span>
-                </div>
-                <div
-                  className={`selector-option ${commuteArchetype === 'gas' ? 'selected' : ''}`}
-                  onClick={() => setCommuteArchetype('gas')}
-                >
-                  <span className="icon">🚗</span>
-                  <span className="option-label">SUV / Sedan</span>
-                  <span className="option-desc">Standard internal combustion engine</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="archetype-section">
-              <h3>3. Dietary Choices</h3>
-              <div className="grid-selector">
-                <div
-                  className={`selector-option ${dietArchetype === 'vegan' ? 'selected' : ''}`}
-                  onClick={() => setDietArchetype('vegan')}
-                >
-                  <span className="icon">🥗</span>
-                  <span className="option-label">Plant-Forward</span>
-                  <span className="option-desc">Vegan or low-dairy vegetarian diets</span>
-                </div>
-                <div
-                  className={`selector-option ${dietArchetype === 'balanced' ? 'selected' : ''}`}
-                  onClick={() => setDietArchetype('balanced')}
-                >
-                  <span className="icon">🍗</span>
-                  <span className="option-label">Balanced</span>
-                  <span className="option-desc">White meats, grains, low red meat</span>
-                </div>
-                <div
-                  className={`selector-option ${dietArchetype === 'meat' ? 'selected' : ''}`}
-                  onClick={() => setDietArchetype('meat')}
-                >
-                  <span className="icon">🥩</span>
-                  <span className="option-label">Meat Enthusiast</span>
-                  <span className="option-desc">Regular beef, pork, dairy heavy</span>
-                </div>
-              </div>
-            </div>
-
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? 'Generating eco-profile...' : 'Generate My Eco-Sphere'}
-            </button>
-          </form>
-        </div>
-      </div>
+      <OnboardingFlow
+        displayName={displayName}
+        setDisplayName={setDisplayName}
+        country={country}
+        setCountry={setCountry}
+        postalCode={postalCode}
+        handleChangePostalCode={handleChangePostalCode}
+        housingArchetype={housingArchetype}
+        setHousingArchetype={setHousingArchetype}
+        commuteArchetype={commuteArchetype}
+        setCommuteArchetype={setCommuteArchetype}
+        dietArchetype={dietArchetype}
+        setDietArchetype={setDietArchetype}
+        handleOnboarding={handleOnboarding}
+        loading={loading}
+        countryConfigs={COUNTRY_CONFIGS}
+      />
     );
   }
 
@@ -1513,256 +1406,35 @@ export default function App() {
       </header>
 
       {isCalibrating && user && (
-        <div className="panel-card glass-panel calibration-widget-container" style={{ margin: '0 24px 24px 24px', padding: '24px', background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, fontFamily: 'var(--font-display)', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--primary)' }}>
-              <Leaf size={20} fill="var(--primary)" /> Calibrate Your Carbon Footprint (Step {calibrationStep}/4)
-            </h3>
-            <button
-              onClick={() => {
-                setIsCalibrating(false);
-                localStorage.setItem('footprint_calibration_completed', 'true');
-              }}
-              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '12px' }}
-            >
-              Skip Setup
-            </button>
-          </div>
-
-          <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '2px', marginBottom: '20px', overflow: 'hidden' }}>
-            <div style={{ width: `${(calibrationStep / 4) * 100}%`, height: '100%', background: 'var(--primary)', transition: 'width 0.3s ease' }} />
-          </div>
-
-          {calibrationStep === 1 && (
-            <div>
-              <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--text-muted)' }}>
-                What type of home infrastructure best represents your living situation? This sets your housing baseline.
-              </p>
-              <div className="grid-selector" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-                <div
-                  className={`selector-option ${housingArchetype === 'apartment' ? 'selected' : ''}`}
-                  onClick={() => nextCalibrationStep({ housing: 'apartment' })}
-                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
-                >
-                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🏢</span>
-                  <strong style={{ display: 'block', fontSize: '14px' }}>City Apartment</strong>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Shared walls, low utility load</span>
-                </div>
-                <div
-                  className={`selector-option ${housingArchetype === 'townhouse' ? 'selected' : ''}`}
-                  onClick={() => nextCalibrationStep({ housing: 'townhouse' })}
-                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
-                >
-                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🏡</span>
-                  <strong style={{ display: 'block', fontSize: '14px' }}>Townhouse</strong>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Moderate spacing and utilities</span>
-                </div>
-                <div
-                  className={`selector-option ${housingArchetype === 'family' ? 'selected' : ''}`}
-                  onClick={() => nextCalibrationStep({ housing: 'family' })}
-                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
-                >
-                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🏰</span>
-                  <strong style={{ display: 'block', fontSize: '14px' }}>Single Family Home</strong>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Detached, higher heating load</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {calibrationStep === 2 && (
-            <div>
-              <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--text-muted)' }}>
-                How would you describe your typical dietary choices? Food accounts for up to a third of personal emissions.
-              </p>
-              <div className="grid-selector" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-                <div
-                  className={`selector-option ${dietArchetype === 'vegan' ? 'selected' : ''}`}
-                  onClick={() => nextCalibrationStep({ diet: 'vegan' })}
-                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
-                >
-                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🥗</span>
-                  <strong style={{ display: 'block', fontSize: '14px' }}>Plant-Forward</strong>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Vegan or vegetarian baseline</span>
-                </div>
-                <div
-                  className={`selector-option ${dietArchetype === 'balanced' ? 'selected' : ''}`}
-                  onClick={() => nextCalibrationStep({ diet: 'balanced' })}
-                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
-                >
-                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🍗</span>
-                  <strong style={{ display: 'block', fontSize: '14px' }}>Balanced</strong>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>White meat, grains, low red meat</span>
-                </div>
-                <div
-                  className={`selector-option ${dietArchetype === 'meat' ? 'selected' : ''}`}
-                  onClick={() => nextCalibrationStep({ diet: 'meat' })}
-                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
-                >
-                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🥩</span>
-                  <strong style={{ display: 'block', fontSize: '14px' }}>Meat Enthusiast</strong>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Regular beef, pork, dairy heavy</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {calibrationStep === 3 && (
-            <div>
-              <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--text-muted)' }}>
-                How do you typically commute or travel? Transport represents the largest source of transit emissions.
-              </p>
-              <div className="grid-selector" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-                <div
-                  className={`selector-option ${commuteArchetype === 'transit' ? 'selected' : ''}`}
-                  onClick={() => nextCalibrationStep({ commute: 'transit' })}
-                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
-                >
-                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🚲</span>
-                  <strong style={{ display: 'block', fontSize: '14px' }}>Transit / Bike / Walk</strong>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Subway, bus, active modes</span>
-                </div>
-                <div
-                  className={`selector-option ${commuteArchetype === 'hybrid' ? 'selected' : ''}`}
-                  onClick={() => nextCalibrationStep({ commute: 'hybrid' })}
-                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
-                >
-                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🔌</span>
-                  <strong style={{ display: 'block', fontSize: '14px' }}>Hybrid / EV</strong>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Efficient electric/hybrid vehicle</span>
-                </div>
-                <div
-                  className={`selector-option ${commuteArchetype === 'gas' ? 'selected' : ''}`}
-                  onClick={() => nextCalibrationStep({ commute: 'gas' })}
-                  style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
-                >
-                  <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🚗</span>
-                  <strong style={{ display: 'block', fontSize: '14px' }}>SUV / Sedan</strong>
-                  <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Standard gas-powered vehicle</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {calibrationStep === 4 && (
-            <div>
-              <p style={{ margin: '0 0 16px 0', fontSize: '14px', color: 'var(--text-muted)' }}>
-                Customize your display name and location to wrap up calibration. We auto-detected these from your IP.
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '400px', marginBottom: '20px' }}>
-                <div className="input-group" style={{ margin: 0 }}>
-                  <label htmlFor="calibrate-name">Display Name</label>
-                  <input
-                    id="calibrate-name"
-                    type="text"
-                    value={displayName}
-                    onChange={e => setDisplayName(e.target.value)}
-                    className="input-field"
-                  />
-                </div>
-                <div className="input-group" style={{ margin: 0 }}>
-                  <label htmlFor="calibrate-zip">Postal / Zip Code</label>
-                  <input
-                    id="calibrate-zip"
-                    type="text"
-                    value={postalCode}
-                    onChange={handleChangePostalCode}
-                    className="input-field"
-                  />
-                </div>
-              </div>
-              <button
-                type="button"
-                className="btn-primary"
-                style={{ width: 'auto', padding: '10px 24px' }}
-                onClick={async () => {
-                  const cleanCode = postalCode.trim();
-                  if (cleanCode) {
-                    const config = COUNTRY_CONFIGS[country];
-                    const localRegex = new RegExp(config.pattern);
-                    if (!localRegex.test(cleanCode)) {
-                      triggerToast(`Please enter a valid postal code for ${config.name}.`, 'error');
-                      return;
-                    }
-                  }
-                  await handleProgressiveProfileUpdate({
-                    displayName,
-                    postalCode
-                  });
-                  setIsCalibrating(false);
-                  localStorage.setItem('footprint_calibration_completed', 'true');
-                  triggerToast('Calibration complete! Eco-Sphere updated.', 'success');
-                }}
-              >
-                Finish Calibration!
-              </button>
-            </div>
-          )}
-        </div>
+        <CalibrationSurvey
+          setIsCalibrating={setIsCalibrating}
+          calibrationStep={calibrationStep}
+          housingArchetype={housingArchetype}
+          dietArchetype={dietArchetype}
+          commuteArchetype={commuteArchetype}
+          nextCalibrationStep={nextCalibrationStep}
+          displayName={displayName}
+          setDisplayName={setDisplayName}
+          postalCode={postalCode}
+          handleChangePostalCode={handleChangePostalCode}
+          country={country}
+          countryConfigs={COUNTRY_CONFIGS}
+          handleProgressiveProfileUpdate={handleProgressiveProfileUpdate}
+          triggerToast={triggerToast}
+        />
       )}
 
       <div className="dashboard-grid">
         {/* Left Side: Carbon Stats, Simulator, History chart */}
         <div className="left-panel">
+          <CarbonTrajectory
+            totalFootprint={simFootprint.total}
+            targetTons={targetTons}
+            baselineTons={baselineTons}
+            simReduction={simReduction}
+            carbonEquivalentsDescription={getCarbonEquivalentsDescription(simReduction * 1000)}
+          />
 
-          {/* Carbon Trajectory Panel */}
-          <div className="panel-card glass-panel">
-            <div className="trajectory-header">
-              <div>
-                <span className="simulator-title" style={{ fontSize: '12px' }}>Projected Annual Trajectory</span>
-                <div className="trajectory-value">
-                  {simFootprint.total} <span>Tons CO2e / Yr</span>
-                </div>
-              </div>
-              <div className="target-info">
-                <div>Target: <strong>{targetTons} Tons</strong></div>
-                <div>Baseline: {baselineTons} Tons</div>
-              </div>
-            </div>
-
-            <div className="trajectory-progress-container">
-              <div className="progress-bar-container" style={{ height: '14px' }}>
-                <div
-                  className="progress-bar-fill"
-                  style={{
-                    width: `${Math.min(100, (simFootprint.total / baselineTons) * 100)}%`,
-                    background: simFootprint.total <= targetTons
-                      ? 'linear-gradient(90deg, var(--primary), var(--accent))'
-                      : 'linear-gradient(90deg, var(--warning), var(--danger))'
-                  }}
-                />
-              </div>
-              <div className="trajectory-sub-bar">
-                <span>Eco Warrior (0T)</span>
-                <span>Target ({targetTons}T)</span>
-                <span>Onboarding Baseline ({baselineTons}T)</span>
-              </div>
-            </div>
-
-            {simReduction > 0 ? (
-              <div className="projected-reduction-banner" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                  <span className="reduction-label">Projected Annual Reduction:</span>
-                  <span className="reduction-value">-{simReduction} Tons/Yr</span>
-                </div>
-                <div style={{ fontSize: '11px', opacity: 0.85, color: 'var(--accent)', marginTop: '4px', textAlign: 'left' }}>
-                  🌿 {getCarbonEquivalentsDescription(simReduction * 1000)}
-                </div>
-              </div>
-            ) : (
-              <div className="projected-reduction-banner" style={{ background: 'hsla(346, 84%, 61%, 0.1)', borderColor: 'var(--danger)', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                  <span className="reduction-label" style={{ color: 'var(--danger)' }}>Above Onboarding Target:</span>
-                  <span className="reduction-value" style={{ color: 'var(--danger)' }}>+{Math.abs(simReduction)} Tons/Yr</span>
-                </div>
-                <div style={{ fontSize: '11px', opacity: 0.85, color: 'var(--danger)', marginTop: '4px', textAlign: 'left' }}>
-                  ⚠️ Try using the Simulator below to lower your annual projected trajectory.
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Interactive Life Swap Simulator */}
           <Simulator
             simHousing={simHousing}
             setSimHousing={setSimHousing}
@@ -1775,663 +1447,60 @@ export default function App() {
             foodImpact={simFootprint.food}
           />
 
-          {/* AI Climate Coach & Recommendations Card */}
-          <div className="panel-card glass-panel" style={{ background: 'linear-gradient(135deg, hsla(142, 70%, 45%, 0.1) 0%, hsla(224, 45%, 12%, 0.85) 100%)', border: '1px solid rgba(16, 185, 129, 0.25)', marginBottom: '4px' }}>
-            <h2 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Sparkles size={20} color="var(--primary)" /> AI Climate Coach
-            </h2>
+          <AICoach
+            coachInsights={coachInsights}
+            recommendations={recommendations}
+            triggerQuickLog={triggerQuickLog}
+            loading={loading}
+          />
 
-            {/* Insights Section */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-              {coachInsights.map((insight, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.02)',
-                    borderLeft: '3px solid var(--primary)',
-                    padding: '10px 14px',
-                    borderRadius: '0 8px 8px 0',
-                    fontSize: '13px',
-                    color: 'var(--text-muted)',
-                    lineHeight: '1.4',
-                    textAlign: 'left'
-                  }}
-                >
-                  {insight}
-                </div>
-              ))}
-            </div>
+          <CarbonTrend
+            chartData={chartData}
+            chartViewMode={chartViewMode}
+            setChartViewMode={setChartViewMode}
+            carbonEquivalentsDescription={(total) => getCarbonEquivalentsDescription(total)}
+          />
 
-            {/* Recommendations Section */}
-            {recommendations.length > 0 && (
-              <div>
-                <span className="simulator-title" style={{ fontSize: '11px', display: 'block', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)' }}>
-                  Recommended Micro-Actions
-                </span>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {recommendations.map(rec => {
-                    let badgeBg = 'rgba(255,255,255,0.05)';
-                    let badgeColor = 'var(--text-muted)';
-
-                    if (rec.category === 'housing') {
-                      badgeBg = 'rgba(16, 185, 129, 0.1)';
-                      badgeColor = 'hsl(150, 90%, 65%)';
-                    } else if (rec.category === 'transport') {
-                      badgeBg = 'rgba(59, 130, 246, 0.1)';
-                      badgeColor = 'hsl(217, 91%, 65%)';
-                    } else if (rec.category === 'food') {
-                      badgeBg = 'rgba(251, 191, 36, 0.1)';
-                      badgeColor = 'hsl(45, 100%, 55%)';
-                    }
-
-                    return (
-                      <div
-                        key={rec.id}
-                        style={{
-                          background: 'rgba(0, 0, 0, 0.2)',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '10px',
-                          padding: '14px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '10px',
-                          textAlign: 'left',
-                          transition: 'all 0.2s ease'
-                        }}
-                        className="rec-action-card"
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
-                          <div>
-                            <strong style={{ fontSize: '14px', color: 'var(--text-main)', display: 'block' }}>
-                              {rec.title}
-                            </strong>
-                            <span style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginTop: '3px' }}>
-                              {rec.description}
-                            </span>
-                          </div>
-
-                          <span style={{
-                            fontSize: '10px',
-                            padding: '3px 8px',
-                            borderRadius: '6px',
-                            background: badgeBg,
-                            color: badgeColor,
-                            fontWeight: 700,
-                            textTransform: 'uppercase',
-                            flexShrink: 0
-                          }}>
-                            {rec.category}
-                          </span>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 600 }}>
-                              🍃 Avoids {rec.impactKg} kg CO2e
-                            </span>
-                            <span style={{ fontSize: '11px', color: 'var(--leaves-xp)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
-                              +{rec.rewardLeaves} <Leaf size={12} fill="var(--leaves-xp)" style={{ display: 'inline' }} />
-                            </span>
-                          </div>
-
-                          <button
-                            type="button"
-                            className="btn-primary"
-                            style={{
-                              padding: '6px 12px',
-                              fontSize: '12px',
-                              borderRadius: '6px',
-                              width: 'auto',
-                              margin: 0,
-                              background: 'linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)',
-                              boxShadow: 'none'
-                            }}
-                            onClick={() => triggerQuickLog(rec.category, rec.type, rec.value, rec.unit)}
-                            disabled={loading}
-                          >
-                            Log Action
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Historical Trend Chart */}
-          <div className="panel-card glass-panel">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 className="panel-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Activity size={20} color="var(--primary)" /> Emitted Carbon Trend
-              </h2>
-              {chartData.length > 0 && (
-                <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', padding: '2px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setChartViewMode('total')}
-                    style={{
-                      padding: '4px 10px',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      borderRadius: '4px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      background: chartViewMode === 'total' ? 'var(--primary)' : 'transparent',
-                      color: chartViewMode === 'total' ? 'white' : 'var(--text-dim)',
-                      transition: 'all 0.2s',
-                      outline: 'none'
-                    }}
-                  >
-                    Total
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setChartViewMode('breakdown')}
-                    style={{
-                      padding: '4px 10px',
-                      fontSize: '11px',
-                      fontWeight: 600,
-                      borderRadius: '4px',
-                      border: 'none',
-                      cursor: 'pointer',
-                      background: chartViewMode === 'breakdown' ? 'var(--primary)' : 'transparent',
-                      color: chartViewMode === 'breakdown' ? 'white' : 'var(--text-dim)',
-                      transition: 'all 0.2s',
-                      outline: 'none'
-                    }}
-                  >
-                    Breakdown
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {chartData.length > 0 ? (
-              <div>
-                <div className="chart-container">
-                  <svg className="chart-svg" viewBox="0 0 400 200">
-                    <defs>
-                      <linearGradient id="chartGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.4" />
-                        <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.0" />
-                      </linearGradient>
-                      <linearGradient id="housingGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="hsl(150, 90%, 60%)" />
-                        <stop offset="100%" stopColor="hsl(142, 70%, 40%)" />
-                      </linearGradient>
-                      <linearGradient id="transportGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="hsl(217, 91%, 65%)" />
-                        <stop offset="100%" stopColor="hsl(224, 80%, 50%)" />
-                      </linearGradient>
-                      <linearGradient id="foodGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="hsl(45, 100%, 55%)" />
-                        <stop offset="100%" stopColor="hsl(34, 97%, 45%)" />
-                      </linearGradient>
-                    </defs>
-
-                    {/* Grid Lines */}
-                    <line x1="40" y1="20" x2="380" y2="20" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="4" />
-                    <line x1="40" y1="80" x2="380" y2="80" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="4" />
-                    <line x1="40" y1="140" x2="380" y2="140" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="4" />
-
-                    {/* Chart Rendering */}
-                    {chartViewMode === 'total' ? (
-                      (() => {
-                        const maxVal = Math.max(...chartData.map(d => d.total), 1);
-                        const coords = chartData.map((d, index) => {
-                          const x = 40 + (index / (chartData.length - 1 || 1)) * 340;
-                          const y = 170 - (d.total / maxVal) * 140;
-                          return { x, y, label: d.label, val: d.total };
-                        });
-
-                        const pathD = coords.reduce((acc, c, i) => i === 0 ? `M ${c.x} ${c.y}` : `${acc} L ${c.x} ${c.y}`, '');
-                        const areaD = coords.length > 0
-                          ? `${pathD} L ${coords[coords.length - 1].x} 170 L ${coords[0].x} 170 Z`
-                          : '';
-
-                        return (
-                          <>
-                            {/* Shaded Area */}
-                            {areaD && <path d={areaD} fill="url(#chartGrad)" />}
-                            {/* Connected Line */}
-                            {pathD && <path d={pathD} fill="none" stroke="var(--primary)" strokeWidth="2.5" />}
-
-                            {/* Points */}
-                            {coords.map((c, i) => (
-                              <g key={i}>
-                                <circle cx={c.x} cy={c.y} r="4" fill="var(--accent)" stroke="var(--bg-dark)" strokeWidth="1.5" />
-                                <text x={c.x} y={c.y - 10} fill="var(--text-main)" fontSize="8" textAnchor="middle" fontWeight="600">
-                                  {Math.round(c.val)} kg
-                                </text>
-                                <text x={c.x} y="190" fill="var(--text-dim)" fontSize="10" textAnchor="middle">
-                                  {c.label}
-                                </text>
-                              </g>
-                            ))}
-                          </>
-                        );
-                      })()
-                    ) : (
-                      // Stacked Bar Chart breakdown
-                      (() => {
-                        const maxVal = Math.max(...chartData.map(d => d.total), 1);
-                        return chartData.map((d, index) => {
-                          const cX = 40 + (index / (chartData.length - 1 || 1)) * 340;
-                          const barWidth = 20;
-
-                          const hHousing = (d.housing / maxVal) * 140;
-                          const hTransport = (d.transport / maxVal) * 140;
-                          const hFood = (d.food / maxVal) * 140;
-
-                          const yHousing = 170 - hHousing;
-                          const yTransport = yHousing - hTransport;
-                          const yFood = yTransport - hFood;
-
-                          return (
-                            <g key={index}>
-                              {/* Housing Segment */}
-                              {hHousing > 0 && (
-                                <rect x={cX - barWidth / 2} y={yHousing} width={barWidth} height={hHousing} fill="url(#housingGrad)" rx="1.5" />
-                              )}
-                              {/* Transport Segment */}
-                              {hTransport > 0 && (
-                                <rect x={cX - barWidth / 2} y={yTransport} width={barWidth} height={hTransport} fill="url(#transportGrad)" rx="1.5" />
-                              )}
-                              {/* Food Segment */}
-                              {hFood > 0 && (
-                                <rect x={cX - barWidth / 2} y={yFood} width={barWidth} height={hFood} fill="url(#foodGrad)" rx="1.5" />
-                              )}
-                              {/* Total Value text */}
-                              <text x={cX} y={yFood - 8} fill="var(--text-main)" fontSize="8" textAnchor="middle" fontWeight="600">
-                                {Math.round(d.total)} kg
-                              </text>
-                              {/* Month Label */}
-                              <text x={cX} y="190" fill="var(--text-dim)" fontSize="10" textAnchor="middle">
-                                {d.label}
-                              </text>
-                            </g>
-                          );
-                        });
-                      })()
-                    )}
-
-                    <line x1="40" y1="170" x2="380" y2="170" stroke="var(--border-color)" strokeWidth="1" />
-                  </svg>
-                </div>
-
-                {/* Legend for breakdown */}
-                {chartViewMode === 'breakdown' && (
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '12px', marginBottom: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: 'linear-gradient(135deg, hsl(150, 90%, 60%), hsl(142, 70%, 40%))' }} />
-                      🏠 Housing
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: 'linear-gradient(135deg, hsl(217, 91%, 65%), hsl(224, 80%, 50%))' }} />
-                      🚗 Transport
-                    </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <span style={{ display: 'inline-block', width: '10px', height: '10px', borderRadius: '3px', background: 'linear-gradient(135deg, hsl(45, 100%, 55%), hsl(34, 97%, 45%))' }} />
-                      🥗 Food
-                    </span>
-                  </div>
-                )}
-
-                {(() => {
-                  const latestMonth = chartData[chartData.length - 1];
-                  return (
-                    <div style={{ background: 'rgba(255,255,255,0.01)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-color)', fontSize: '12px', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '12px' }}>
-                      <strong style={{ color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Leaf size={14} color="var(--primary)" /> Latest Month Context ({latestMonth.label}):
-                      </strong>
-                      <span style={{ color: 'var(--text-muted)', lineHeight: '1.4' }}>
-                        Your total monthly footprint of **{Math.round(latestMonth.total)} kg CO2e** is {getCarbonEquivalentsDescription(latestMonth.total)}
-                      </span>
-                    </div>
-                  );
-                })()}
-              </div>
-            ) : (
-              <p style={{ color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center', padding: '40px 0' }}>
-                No tracking events registered yet.
-              </p>
-            )}
-          </div>
-
-
-
-          {/* Smart Telemetry Simulator Webhooks Card */}
-          <div className="panel-card glass-panel">
-            <h2 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Activity size={20} color="var(--primary)" /> Telemetry Webhooks Simulator
-            </h2>
-            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-              Simulate incoming telemetry data stream from connected services (Radar SDK, Arcadia Utility, Nest Thermostat) to test backend ingestion pipeline.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Radar.io Webhook Section */}
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', color: 'var(--accent)' }}>📡 Radar.io Transit SDK</div>
-                <div className="form-row" style={{ marginBottom: '10px' }}>
-                  <div className="input-group" style={{ margin: 0 }}>
-                    <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Trip Distance (Miles)</label>
-                    <input
-                      type="number"
-                      className="input-field"
-                      style={{ padding: '8px 12px', fontSize: '14px' }}
-                      value={simRadarDistance}
-                      onChange={e => setSimRadarDistance(Number(e.target.value))}
-                    />
-                  </div>
-                  <div className="input-group" style={{ margin: 0 }}>
-                    <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Transit Mode</label>
-                    <select
-                      className="input-field"
-                      style={{ padding: '8px 12px', fontSize: '14px' }}
-                      value={simRadarMode}
-                      onChange={e => setSimRadarMode(e.target.value as 'suv' | 'gas_car' | 'hybrid' | 'ev' | 'transit')}
-                    >
-                      <option value="suv">Gas SUV</option>
-                      <option value="gas_car">Gas Sedan</option>
-                      <option value="hybrid">Hybrid</option>
-                      <option value="ev">Electric EV</option>
-                      <option value="transit">Transit/Bike</option>
-                    </select>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  style={{ padding: '8px 14px', fontSize: '13px', borderRadius: '6px', width: 'auto' }}
-                  onClick={triggerRadarWebhook}
-                  disabled={loading}
-                >
-                  Simulate Radar Ingestion
-                </button>
-              </div>
-
-              {/* Arcadia Webhook Section */}
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', color: 'hsl(200, 80%, 50%)' }}>🔌 Arcadia Utility Billing</div>
-                <div className="input-group" style={{ marginBottom: '10px' }}>
-                  <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Power Billing (kWh)</label>
-                  <input
-                    type="number"
-                    className="input-field"
-                    style={{ padding: '8px 12px', fontSize: '14px' }}
-                    value={simArcadiaKwh}
-                    onChange={e => setSimArcadiaKwh(Number(e.target.value))}
-                  />
-                </div>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  style={{ padding: '8px 14px', fontSize: '13px', borderRadius: '6px', background: 'linear-gradient(135deg, hsl(200, 80%, 40%) 0%, hsl(200, 80%, 50%) 100%)', width: 'auto' }}
-                  onClick={triggerArcadiaWebhook}
-                  disabled={loading}
-                >
-                  Simulate Arcadia Billing
-                </button>
-              </div>
-
-              {/* Nest Webhook Section */}
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontWeight: 'bold', fontSize: '14px', marginBottom: '8px', color: 'var(--warning)' }}>🏡 Google Nest Thermostat</div>
-                <div className="input-group" style={{ marginBottom: '10px' }}>
-                  <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Thermostat Mode</label>
-                  <select
-                    className="input-field"
-                    style={{ padding: '8px 12px', fontSize: '14px' }}
-                    value={simNestEco ? 'eco' : 'standard'}
-                    onChange={e => setSimNestEco(e.target.value === 'eco')}
-                  >
-                    <option value="standard">Standard HVAC heating/cooling</option>
-                    <option value="eco">Nest Eco-Mode Active</option>
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  style={{ padding: '8px 14px', fontSize: '13px', borderRadius: '6px', background: 'linear-gradient(135deg, var(--warning) 0%, var(--leaves-xp) 100%)', width: 'auto' }}
-                  onClick={triggerNestWebhook}
-                  disabled={loading}
-                >
-                  Simulate Nest Telemetry Check
-                </button>
-              </div>
-            </div>
-          </div>
-
+          <TelemetrySimulator
+            simRadarDistance={simRadarDistance}
+            setSimRadarDistance={setSimRadarDistance}
+            simRadarMode={simRadarMode}
+            setSimRadarMode={setSimRadarMode}
+            simArcadiaKwh={simArcadiaKwh}
+            setSimArcadiaKwh={setSimArcadiaKwh}
+            simNestEco={simNestEco}
+            setSimNestEco={setSimNestEco}
+            triggerRadarWebhook={triggerRadarWebhook}
+            triggerArcadiaWebhook={triggerArcadiaWebhook}
+            triggerNestWebhook={triggerNestWebhook}
+            loading={loading}
+          />
         </div>
 
         {/* Right Side: Eco-Sphere Visual, Challenges, Ad Campaigns */}
         <div className="right-panel">
+          <CommunityLeaderboard
+            ecoSphereTab={ecoSphereTab}
+            setEcoSphereTab={setEcoSphereTab}
+            user={user}
+            leaderboard={leaderboard}
+          />
 
-          {/* Visual Eco-Sphere / Eco-Leagues Leaderboard Tabbed Panel */}
-          <div className="panel-card glass-panel" style={{ position: 'relative' }}>
-            {/* Tabs Header */}
-            <div className="flex justify-center border-b mb-5" style={{ borderColor: 'var(--border-color)', borderBottomWidth: '1px', borderBottomStyle: 'solid', display: 'flex', gap: '16px' }}>
-              <button
-                type="button"
-                className={`pb-2 font-display font-bold text-sm transition-all`}
-                style={{
-                  borderBottomColor: ecoSphereTab === 'sphere' ? 'var(--accent)' : 'transparent',
-                  color: ecoSphereTab === 'sphere' ? 'var(--accent)' : 'var(--text-dim)',
-                  background: 'transparent',
-                  borderTop: 'none',
-                  borderLeft: 'none',
-                  borderRight: 'none',
-                  borderBottomWidth: '2px',
-                  borderBottomStyle: 'solid',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  paddingBottom: '8px',
-                  fontWeight: 700
-                }}
-                onClick={() => setEcoSphereTab('sphere')}
-              >
-                Virtual Eco-Sphere
-              </button>
-              <button
-                type="button"
-                className={`pb-2 font-display font-bold text-sm transition-all`}
-                style={{
-                  borderBottomColor: ecoSphereTab === 'league' ? 'var(--accent)' : 'transparent',
-                  color: ecoSphereTab === 'league' ? 'var(--accent)' : 'var(--text-dim)',
-                  background: 'transparent',
-                  borderTop: 'none',
-                  borderLeft: 'none',
-                  borderRight: 'none',
-                  borderBottomWidth: '2px',
-                  borderBottomStyle: 'solid',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  paddingBottom: '8px',
-                  fontWeight: 700
-                }}
-                onClick={() => setEcoSphereTab('league')}
-              >
-                Eco-Leagues Leaderboard
-              </button>
-            </div>
+          <QuickTracker
+            triggerQuickLog={triggerQuickLog}
+            loading={loading}
+          />
 
-            {ecoSphereTab === 'sphere' ? (
-              <div style={{ textAlign: 'center' }}>
-                <div className="ecosphere-widget">
-                  <EcoSphere level={user.current_level} />
-                  <div className="ecosphere-label">Eco-Sphere Level {user.current_level}</div>
-                </div>
+          <SponsorRewards
+            vouchers={vouchers}
+            redeemVoucher={redeemVoucher}
+          />
 
-                <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px' }}>
-                  Level up your habitat and watch new branches, flowers, and silver birches grow by earning Leaves!
-                </p>
-              </div>
-            ) : (
-              <div className="leaderboard-container" style={{ maxHeight: '330px', overflowY: 'auto', padding: '8px 0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', padding: '0 8px' }}>
-                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)' }}>Competitor</span>
-                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-dim)' }}>Leaves</span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {leaderboard.map((member, index) => {
-                    const isCurrentUser = member.userId === user.id;
-                    return (
-                      <div
-                        key={member.id}
-                        style={{
-                          background: isCurrentUser ? 'var(--accent-glow)' : 'rgba(0, 0, 0, 0.2)',
-                          borderColor: isCurrentUser ? 'var(--accent)' : 'var(--border-color)',
-                          borderRadius: '8px',
-                          borderWidth: '1px',
-                          borderStyle: 'solid',
-                          padding: '10px 14px',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          transition: 'all 0.2s ease',
-                          boxShadow: isCurrentUser ? '0 0 10px var(--accent-glow)' : 'none'
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '14px', width: '24px', textAlign: 'center', color: isCurrentUser ? 'var(--accent)' : 'var(--text-dim)' }}>
-                            #{index + 1}
-                          </span>
-                          <span style={{ fontWeight: 600, fontSize: '14px', color: isCurrentUser ? 'var(--text-main)' : 'var(--text-muted)' }}>
-                            {member.username} {isCurrentUser && ' (You)'}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ background: 'rgba(0, 0, 0, 0.3)', borderRadius: '4px', padding: '2px 6px', fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600 }}>
-                            Lvl {member.level}
-                          </span>
-                          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '14px', color: 'var(--leaves-xp)', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                            {member.leaves} <Leaf size={12} fill="var(--leaves-xp)" style={{ display: 'inline' }} />
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+          <HabitChallenges
+            challenges={challenges}
+            toggleChallengeDay={toggleChallengeDay}
+          />
 
-          {/* Quick Action Tracker Panel */}
-          <QuickTracker triggerQuickLog={triggerQuickLog} loading={loading} />
-
-          {/* B-Corp Rewards & Sponsor Integrations */}
-          <div className="panel-card glass-panel">
-            <h2 className="panel-title"><Gift size={20} color="var(--warning)" /> Sponsor Rewards Hub</h2>
-
-            <div className="sponsor-banner">
-              <div className="sponsor-logo arcadia">ARCADIA</div>
-              <div className="sponsor-info">
-                <div className="sponsor-title">Smart Energy Plug</div>
-                <div className="sponsor-text">Link utility account and receive a free smart power plug. (Cost: 1500 Leaves)</div>
-              </div>
-              <button
-                className="sponsor-btn"
-                onClick={() => redeemVoucher('Arcadia Energy', 'plug', 1500)}
-              >
-                Claim
-              </button>
-            </div>
-
-            <div className="sponsor-banner oatly" style={{ marginTop: '12px' }}>
-              <div className="sponsor-logo oatly">OATLY</div>
-              <div className="sponsor-info">
-                <div className="sponsor-title">15% Brand Voucher</div>
-                <div className="sponsor-text">Claim a 15% barcode discount for milk-substitutes. (Cost: 500 Leaves)</div>
-              </div>
-              <button
-                className="sponsor-btn"
-                onClick={() => redeemVoucher('Oatly', 'discount', 500)}
-              >
-                Claim
-              </button>
-            </div>
-
-            <div className="sponsor-banner" style={{ marginTop: '12px', background: 'linear-gradient(135deg, hsla(142, 70%, 45%, 0.15) 0%, hsla(150, 90%, 60%, 0.05) 100%)', borderColor: 'var(--primary)' }}>
-              <div className="sponsor-logo" style={{ background: 'var(--primary)', color: 'white' }}>EDEN</div>
-              <div className="sponsor-info">
-                <div className="sponsor-title">Plant 1 Physical Tree</div>
-                <div className="sponsor-text">Eden Projects plants one real tree funded by B-Corp escrow. (Cost: 100 Leaves)</div>
-              </div>
-              <button
-                className="sponsor-btn"
-                onClick={() => redeemVoucher('Eden Projects', 'tree', 100)}
-              >
-                Fund Tree
-              </button>
-            </div>
-
-            {/* Redeemed Vouchers list */}
-            {vouchers.length > 0 && (
-              <div style={{ marginTop: '20px' }}>
-                <span className="simulator-title" style={{ fontSize: '12px', display: 'block', marginBottom: '8px' }}>Your Redeemed Rewards</span>
-                <div className="vouchers-list">
-                  {vouchers.map(v => (
-                    <div key={v.id} className="voucher-item">
-                      <div className="voucher-header">
-                        <span className="voucher-title">{v.title}</span>
-                        {v.couponCode && <span className="voucher-code">{v.couponCode}</span>}
-                      </div>
-                      <div className="voucher-desc">{v.description}</div>
-                      {v.rewardType === 'discount' && (
-                        <div className="barcode-visual" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Active 7-Day Challenges */}
-          <div className="panel-card glass-panel">
-            <h2 className="panel-title"><Calendar size={20} color="var(--primary)" /> Habit Challenges</h2>
-
-            {challenges.map(c => (
-              <div key={c.id} className="challenge-card">
-                <div className="challenge-header">
-                  <span className="challenge-name">{c.title}</span>
-                  <span className="challenge-reward">+{c.rewardLeaves} Leaves</span>
-                </div>
-                <p className="challenge-desc">{c.description}</p>
-
-                <div className="challenge-days-grid">
-                  {c.progressLogs.map((completed, idx) => (
-                    <div key={idx} className="day-checkbox-wrapper">
-                      <div
-                        className={`day-checkbox ${completed ? 'completed' : ''}`}
-                        onClick={() => toggleChallengeDay(c.type, idx, completed)}
-                      >
-                        {completed ? '✓' : ''}
-                      </div>
-                      <span className="day-label">D{idx + 1}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="challenge-footer">
-                  <span className="streak-counter">🔥 {c.currentStreak} Day Streak</span>
-                  {c.completed ? (
-                    <span style={{ color: 'var(--accent)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <CheckCircle size={14} /> Completed
-                    </span>
-                  ) : (
-                    <span style={{ color: 'var(--text-dim)' }}>In Progress</span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Recent Activity & Footprint Logs Panel */}
           <ActivityLogs
             events={events}
             deleteCarbonEvent={deleteCarbonEvent}
