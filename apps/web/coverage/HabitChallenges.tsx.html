@@ -3,15 +3,15 @@
 <html lang="en">
 
 <head>
-    <title>Code coverage report for src/services/signatureVerification.ts</title>
+    <title>Code coverage report for HabitChallenges.tsx</title>
     <meta charset="utf-8" />
-    <link rel="stylesheet" href="../../prettify.css" />
-    <link rel="stylesheet" href="../../base.css" />
-    <link rel="shortcut icon" type="image/x-icon" href="../../favicon.png" />
+    <link rel="stylesheet" href="prettify.css" />
+    <link rel="stylesheet" href="base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style type='text/css'>
         .coverage-summary .sorter {
-            background-image: url(../../sort-arrow-sprite.png);
+            background-image: url(sort-arrow-sprite.png);
         }
     </style>
 </head>
@@ -19,13 +19,13 @@
 <body>
 <div class='wrapper'>
     <div class='pad1'>
-        <h1><a href="../../index.html">All files</a> / <a href="index.html">src/services</a> signatureVerification.ts</h1>
+        <h1><a href="index.html">All files</a> HabitChallenges.tsx</h1>
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/15</span>
+                <span class='fraction'>0/4</span>
             </div>
         
             
@@ -39,14 +39,14 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/1</span>
+                <span class='fraction'>0/4</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/15</span>
+                <span class='fraction'>0/4</span>
             </div>
         
             
@@ -107,7 +107,16 @@
 <a name='L42'></a><a href='#L42'>42</a>
 <a name='L43'></a><a href='#L43'>43</a>
 <a name='L44'></a><a href='#L44'>44</a>
-<a name='L45'></a><a href='#L45'>45</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
@@ -122,78 +131,96 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
 <span class="cline-any cline-neutral">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import crypto from 'crypto';
-import { getSecret } from '../gcp.js';
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { Calendar, CheckCircle } from 'lucide-react';
+import type { Challenge } from '@footprint/shared-types';
 &nbsp;
-/**
- * Validates the HMAC-SHA256 signature of a webhook request body.
- * Returns true if valid, or if no signature key is configured in secrets (allowing local development).
- */
-export async function <span class="fstat-no" title="function not covered" >verifyWebhookSignature(</span>
-  rawBody: string,
-  signatureHeader: string | undefined,
-  secretKeyName: string
-): Promise&lt;boolean&gt; {
-  const secretKey = <span class="cstat-no" title="statement not covered" >await getSecret(secretKeyName);</span>
+interface HabitChallengesProps {
+  challenges: Challenge[];
+  toggleChallengeDay: (challengeType: 'cold-wash' | 'vampire-hunt', dayIndex: number, currentlyCompleted: boolean) =&gt; Promise&lt;void&gt;;
+}
 &nbsp;
-  // If no secret key is configured in GCP/Env, allow bypass in local sandbox
-<span class="cstat-no" title="statement not covered" >  if (!secretKey) {</span>
-<span class="cstat-no" title="statement not covered" >    console.warn(`Webhook Security: No secret key "${secretKeyName}" found. Skipping signature verification in sandbox mode.`);</span>
-<span class="cstat-no" title="statement not covered" >    return true;</span>
-  }
+export default function <span class="fstat-no" title="function not covered" >HabitChallenges({</span>
+  challenges,
+  toggleChallengeDay
+}: HabitChallengesProps) {
+<span class="cstat-no" title="statement not covered" >  return (</span>
+    &lt;div className="panel-card glass-panel"&gt;
+      &lt;h2 className="panel-title"&gt;&lt;Calendar size={20} color="var(--primary)" /&gt; Habit Challenges&lt;/h2&gt;
 &nbsp;
-<span class="cstat-no" title="statement not covered" >  if (!signatureHeader) {</span>
-<span class="cstat-no" title="statement not covered" >    return false;</span>
-  }
+      {challenges.<span class="fstat-no" title="function not covered" >map(c</span> =&gt; (
+<span class="cstat-no" title="statement not covered" >        &lt;div key={c.id} className="challenge-card"&gt;</span>
+          &lt;div className="challenge-header"&gt;
+            &lt;span className="challenge-name"&gt;{c.title}&lt;/span&gt;
+            &lt;span className="challenge-reward"&gt;+{c.rewardLeaves} Leaves&lt;/span&gt;
+          &lt;/div&gt;
+          &lt;p className="challenge-desc"&gt;{c.description}&lt;/p&gt;
 &nbsp;
-<span class="cstat-no" title="statement not covered" >  try {</span>
-    const computedSignature = <span class="cstat-no" title="statement not covered" >crypto</span>
-      .createHmac('sha256', secretKey)
-      .update(rawBody)
-      .digest('hex');
+          &lt;div className="challenge-days-grid"&gt;
+            {c.progressLogs.<span class="fstat-no" title="function not covered" >map((c</span>ompleted, idx) =&gt; (
+<span class="cstat-no" title="statement not covered" >              &lt;div key={idx} className="day-checkbox-wrapper"&gt;</span>
+                &lt;div
+                  className={`day-checkbox ${completed ? 'completed' : ''}`}
+<span class="fstat-no" title="function not covered" >                  onClick={() =&gt; <span class="cstat-no" title="statement not covered" >t</span>oggleChallengeDay(c.type, idx, completed)}</span>
+                &gt;
+                  {completed ? '✓' : ''}
+                &lt;/div&gt;
+                &lt;span className="day-label"&gt;D{idx + 1}&lt;/span&gt;
+              &lt;/div&gt;
+            ))}
+          &lt;/div&gt;
 &nbsp;
-    // Use timingSafeEqual to prevent timing attacks
-    const bufferComputed = <span class="cstat-no" title="statement not covered" >Buffer.from(computedSignature, 'hex');</span>
-    const bufferReceived = <span class="cstat-no" title="statement not covered" >Buffer.from(signatureHeader, 'hex');</span>
-&nbsp;
-<span class="cstat-no" title="statement not covered" >    if (bufferComputed.length !== bufferReceived.length) {</span>
-<span class="cstat-no" title="statement not covered" >      return false;</span>
-    }
-&nbsp;
-<span class="cstat-no" title="statement not covered" >    return crypto.timingSafeEqual(bufferComputed, bufferReceived);</span>
-  } catch (err) {
-<span class="cstat-no" title="statement not covered" >    console.error(`Error verifying signature for secret "${secretKeyName}":`, err);</span>
-<span class="cstat-no" title="statement not covered" >    return false;</span>
-  }
+          &lt;div className="challenge-footer"&gt;
+            &lt;span className="streak-counter"&gt;🔥 {c.currentStreak} Day Streak&lt;/span&gt;
+            {c.completed ? (
+              &lt;span style={{ color: 'var(--accent)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 4 }}&gt;
+                &lt;CheckCircle size={14} /&gt; Completed
+              &lt;/span&gt;
+            ) : (
+              &lt;span style={{ color: 'var(--text-dim)' }}&gt;In Progress&lt;/span&gt;
+            )}
+          &lt;/div&gt;
+        &lt;/div&gt;
+      ))}
+    &lt;/div&gt;
+  );
 }
 &nbsp;</pre></td></tr></table></pre>
 
@@ -202,16 +229,16 @@ export async function <span class="fstat-no" title="function not covered" >verif
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-06-20T00:27:19.339Z
+                at 2026-06-20T00:27:29.419Z
             </div>
-        <script src="../../prettify.js"></script>
+        <script src="prettify.js"></script>
         <script>
             window.onload = function () {
                 prettyPrint();
             };
         </script>
-        <script src="../../sorter.js"></script>
-        <script src="../../block-navigation.js"></script>
+        <script src="sorter.js"></script>
+        <script src="block-navigation.js"></script>
     </body>
 </html>
     
