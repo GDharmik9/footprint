@@ -10,7 +10,7 @@ import {
 } from '@footprint/carbon-math';
 import { AuthenticatedRequest } from '../auth.js';
 import { getGridCarbonFactor } from '../services/electricityMaps.js';
-import { calculateLevel } from '../utils.js';
+import { calculateLevel, calculateLeavesAwarded } from '../utils.js';
 
 // 3. GET /api/carbon-events/:userId - Retrieve carbon footprint logs (Secured)
 export async function getEvents(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -202,17 +202,7 @@ export async function createEvent(req: AuthenticatedRequest, res: Response): Pro
       timestamp
     } as any);
 
-    // Award leaves for registering an event: 15 Leaves standard
-    let leavesAwarded = 15;
-
-    // Bonus leaves for green choices
-    if (category === 'transport' && (transportMode === 'ev' || transportMode === 'transit')) {
-      leavesAwarded += 15; // 30 leaves total
-    } else if (category === 'food' && dietType === 'vegan') {
-      leavesAwarded += 10; // 25 leaves total
-    } else if (category === 'housing' && housingOption === 'solar') {
-      leavesAwarded += 20; // 35 leaves total
-    }
+    const leavesAwarded = calculateLeavesAwarded(category, { transportMode, dietType, housingOption });
 
     // Update leaves inside the user's active competitive league standing
     await prisma.league.updateMany({

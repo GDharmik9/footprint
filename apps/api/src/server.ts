@@ -21,7 +21,7 @@ import {
 } from './auth.js';
 import { getGridCarbonFactor } from './services/electricityMaps.js';
 import { startLeaguesEvaluationCron } from './services/cron.js';
-import { calculateLevel } from './utils.js';
+import { calculateLevel, calculateLeavesAwarded } from './utils.js';
 
 import { registerUser, getUserDetails, updateUserProfile, getUserInsights, logoutUser } from './controllers/userController.js';
 import { getEvents, deleteEvent, createEvent } from './controllers/eventController.js';
@@ -149,14 +149,7 @@ if (isMain) {
       }
     });
 
-    let leavesAwarded = 15;
-    if (category === 'transport' && (transportMode === 'ev' || transportMode === 'transit')) {
-      leavesAwarded += 15;
-    } else if (category === 'food' && dietType === 'vegan') {
-      leavesAwarded += 10;
-    } else if (category === 'housing' && housingOption === 'solar') {
-      leavesAwarded += 20;
-    }
+    const leavesAwarded = calculateLeavesAwarded(category, { transportMode, dietType, housingOption });
 
     await prisma.league.updateMany({
       where: { userId },

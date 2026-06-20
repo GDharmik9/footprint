@@ -14,6 +14,72 @@ import { getGridCarbonFactor } from '../services/electricityMaps.js';
 import { generateUserInsights } from '../services/insights.js';
 import { calculateLevel } from '../utils.js';
 
+/**
+ * Seeds baseline historical events for the last 6 months based on the chosen archetype.
+ */
+export async function seedHistoricalEvents(
+  userId: string,
+  archetype: any,
+  customRegionKey: string
+): Promise<void> {
+  const now = new Date();
+  const eventDataList = [];
+  
+  for (let i = 5; i >= 0; i--) {
+    const eventDate = new Date(now.getFullYear(), now.getMonth() - i, 15);
+    const timestamp = eventDate;
+
+    // Seed housing event (monthly)
+    const housingKWh = archetype?.housing === 'apartment' ? 300 : archetype?.housing === 'family' ? 1000 : 500;
+    const housingCO2 = computeHousingCO2(housingKWh, 'standard', customRegionKey);
+    eventDataList.push({
+      id: crypto.randomUUID(),
+      userId,
+      category: 'housing',
+      sourceProvider: 'manual',
+      rawValue: housingKWh,
+      rawUnit: 'kWh',
+      computedCo2eKg: housingCO2,
+      regionCode: customRegionKey,
+      timestamp
+    });
+
+    // Seed transport event (monthly)
+    const transportMiles = archetype?.commute === 'transit' ? 100 : archetype?.commute === 'gas' ? 1200 : 600;
+    const transportMode = archetype?.commute === 'transit' ? 'transit' : archetype?.commute === 'gas' ? 'suv' : 'hybrid';
+    const transportCO2 = computeTransportCO2(transportMiles, transportMode as any);
+    eventDataList.push({
+      id: crypto.randomUUID(),
+      userId,
+      category: 'transport',
+      sourceProvider: 'manual',
+      rawValue: transportMiles,
+      rawUnit: 'miles',
+      computedCo2eKg: transportCO2,
+      timestamp
+    });
+
+    // Seed food event (monthly)
+    const foodMeals = 90; // ~3 meals a day
+    const foodDiet = archetype?.diet || 'balanced';
+    const foodCO2 = computeFoodCO2(foodMeals, foodDiet);
+    eventDataList.push({
+      id: crypto.randomUUID(),
+      userId,
+      category: 'food',
+      sourceProvider: 'manual',
+      rawValue: foodMeals,
+      rawUnit: 'meals',
+      computedCo2eKg: foodCO2,
+      timestamp
+    });
+  }
+
+  await prisma.carbonEvent.createMany({
+    data: eventDataList
+  });
+}
+
 // 1. POST /api/users - Onboarding Archetype Selection (Open endpoint)
 export async function registerUser(req: any, res: Response): Promise<void> {
   try {
@@ -53,61 +119,7 @@ export async function registerUser(req: any, res: Response): Promise<void> {
     GRID_FACTORS[customRegionKey] = gridFactor;
 
     // Seed historical baseline events for the last 6 months (to display rich charts)
-    const now = new Date();
-    const eventDataList = [];
-    for (let i = 5; i >= 0; i--) {
-      const eventDate = new Date(now.getFullYear(), now.getMonth() - i, 15);
-      const timestamp = eventDate;
-
-      // Seed housing event (monthly)
-      const housingKWh = archetype?.housing === 'apartment' ? 300 : archetype?.housing === 'family' ? 1000 : 6000/12;
-      const housingCO2 = computeHousingCO2(housingKWh, 'standard', customRegionKey);
-      eventDataList.push({
-        id: crypto.randomUUID(),
-        userId,
-        category: 'housing',
-        sourceProvider: 'manual',
-        rawValue: housingKWh,
-        rawUnit: 'kWh',
-        computedCo2eKg: housingCO2,
-        regionCode: customRegionKey,
-        timestamp
-      });
-
-      // Seed transport event (monthly)
-      const transportMiles = archetype?.commute === 'transit' ? 100 : archetype?.commute === 'gas' ? 1200 : 600;
-      const transportMode = archetype?.commute === 'transit' ? 'transit' : archetype?.commute === 'gas' ? 'suv' : 'hybrid';
-      const transportCO2 = computeTransportCO2(transportMiles, transportMode as any);
-      eventDataList.push({
-        id: crypto.randomUUID(),
-        userId,
-        category: 'transport',
-        sourceProvider: 'manual',
-        rawValue: transportMiles,
-        rawUnit: 'miles',
-        computedCo2eKg: transportCO2,
-        timestamp
-      });
-
-      // Seed food event (monthly)
-      const foodMeals = 90; // ~3 meals a day
-      const foodDiet = archetype?.diet || 'balanced';
-      const foodCO2 = computeFoodCO2(foodMeals, foodDiet);
-      eventDataList.push({
-        id: crypto.randomUUID(),
-        userId,
-        category: 'food',
-        sourceProvider: 'manual',
-        rawValue: foodMeals,
-        rawUnit: 'meals',
-        computedCo2eKg: foodCO2,
-        timestamp
-      });
-    }
-
-    await prisma.carbonEvent.createMany({
-      data: eventDataList
-    });
+    await seedHistoricalEvents(userId, archetype, customRegionKey);
 
     const createdUser = await prisma.user.findUnique({ where: { id: userId } });
     if (createdUser) {
@@ -231,61 +243,7 @@ export async function updateUserProfile(req: AuthenticatedRequest, res: Response
       });
 
       // Seed new baseline events for the last 6 months
-      const now = new Date();
-      const eventDataList = [];
-      for (let i = 5; i >= 0; i--) {
-        const eventDate = new Date(now.getFullYear(), now.getMonth() - i, 15);
-        const timestamp = eventDate;
-
-        // Seed housing event (monthly)
-        const housingKWh = archetype.housing === 'apartment' ? 300 : archetype.housing === 'family' ? 1000 : 500;
-        const housingCO2 = computeHousingCO2(housingKWh, 'standard', customRegionKey);
-        eventDataList.push({
-          id: crypto.randomUUID(),
-          userId,
-          category: 'housing',
-          sourceProvider: 'manual',
-          rawValue: housingKWh,
-          rawUnit: 'kWh',
-          computedCo2eKg: housingCO2,
-          regionCode: customRegionKey,
-          timestamp
-        });
-
-        // Seed transport event (monthly)
-        const transportMiles = archetype.commute === 'transit' ? 100 : archetype.commute === 'gas' ? 1200 : 600;
-        const transportMode = archetype.commute === 'transit' ? 'transit' : archetype.commute === 'gas' ? 'suv' : 'hybrid';
-        const transportCO2 = computeTransportCO2(transportMiles, transportMode as any);
-        eventDataList.push({
-          id: crypto.randomUUID(),
-          userId,
-          category: 'transport',
-          sourceProvider: 'manual',
-          rawValue: transportMiles,
-          rawUnit: 'miles',
-          computedCo2eKg: transportCO2,
-          timestamp
-        });
-
-        // Seed food event (monthly)
-        const foodMeals = 90; // ~3 meals a day
-        const foodDiet = archetype.diet || 'balanced';
-        const foodCO2 = computeFoodCO2(foodMeals, foodDiet);
-        eventDataList.push({
-          id: crypto.randomUUID(),
-          userId,
-          category: 'food',
-          sourceProvider: 'manual',
-          rawValue: foodMeals,
-          rawUnit: 'meals',
-          computedCo2eKg: foodCO2,
-          timestamp
-        });
-      }
-
-      await prisma.carbonEvent.createMany({
-        data: eventDataList
-      });
+      await seedHistoricalEvents(userId, archetype, customRegionKey);
     }
 
     const updatedUser = await prisma.user.findUnique({ where: { id: userId } });
