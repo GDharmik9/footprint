@@ -1,0 +1,106 @@
+
+D:\new_era\Hackthon\footprint\apps\web\src\App.tsx
+  120:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\new_era\Hackthon\footprint\apps\web\src\App.tsx:120:5
+  118 |   // Reset postal code when country changes to avoid validation mismatch
+  119 |   useEffect(() => {
+> 120 |     setPostalCode('');
+      |     ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  121 |   }, [country]);
+  122 |
+  123 |   // Restrict postal code input values based on country's numeric constraints                                                                                                react-hooks/set-state-in-effect
+  160:50  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  162:58  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  178:7   error    Error: Cannot access variable before it is declared
+
+`fetchUser` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+D:\new_era\Hackthon\footprint\apps\web\src\App.tsx:178:7
+  176 |     const cachedBaseline = localStorage.getItem('footprint_baseline');
+  177 |     if (cachedUserId) {
+> 178 |       fetchUser(cachedUserId);
+      |       ^^^^^^^^^ `fetchUser` accessed before it is declared
+  179 |       if (cachedBaseline) {
+  180 |         setBaseline(JSON.parse(cachedBaseline));
+  181 |       }
+
+D:\new_era\Hackthon\footprint\apps\web\src\App.tsx:194:3
+  192 |
+  193 |   // Fetch all user dashboard data
+> 194 |   const fetchUser = async (userId: string) => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 195 |     setLoading(true);
+      | ^^^^^^^^^^^^^^^^^^^^^
+> 196 |     const token = localStorage.getItem('footprint_auth_token');
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^
+> 250 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^
+> 251 |   };
+      | ^^^^^ `fetchUser` is declared here
+  252 |
+  253 |   // Logout: clear cookie on server and reset client state
+  254 |   const handleLogout = async () => {  react-hooks/immutability
+  180:9   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+D:\new_era\Hackthon\footprint\apps\web\src\App.tsx:180:9
+  178 |       fetchUser(cachedUserId);
+  179 |       if (cachedBaseline) {
+> 180 |         setBaseline(JSON.parse(cachedBaseline));
+      |         ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  181 |       }
+  182 |     } else {
+  183 |       // Zero-friction silent registration on first load                                                                                                                       react-hooks/set-state-in-effect
+  184:7   error    Error: Cannot access variable before it is declared
+
+`triggerFrictionlessOnboarding` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+D:\new_era\Hackthon\footprint\apps\web\src\App.tsx:184:7
+  182 |     } else {
+  183 |       // Zero-friction silent registration on first load
+> 184 |       triggerFrictionlessOnboarding();
+      |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `triggerFrictionlessOnboarding` accessed before it is declared
+  185 |     }
+  186 |   }, []);
+  187 |
+
+D:\new_era\Hackthon\footprint\apps\web\src\App.tsx:542:3
+  540 |
+  541 |   // Trigger zero-friction silent registration on first load
+> 542 |   const triggerFrictionlessOnboarding = async () => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 543 |     setLoading(true);
+      | ^^^^^^^^^^^^^^^^^^^^^
+> 544 |     try {
+      …
+      | ^^^^^^^^^^^^^^^^^^^^^
+> 596 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^
+> 597 |   };
+      | ^^^^^ `triggerFrictionlessOnboarding` is declared here
+  598 |
+  599 |   // Progressive profile patch updates
+  600 |   const handleProgressiveProfileUpdate = async (updatePayload: {                react-hooks/immutability
+  186:6   warning  React Hook useEffect has missing dependencies: 'fetchUser' and 'triggerFrictionlessOnboarding'. Either include them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-hooks/exhaustive-deps
+  244:14  error    'e' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @typescript-eslint/no-unused-vars
+  244:17  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  315:14  error    'err' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+  583:14  error    'err' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+  636:14  error    'err' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+  657:46  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+
+✖ 13 problems (12 errors, 1 warning)
+

@@ -1,6 +1,9 @@
 {
   "name": "footprint-monorepo",
   "version": "1.0.0",
+  "description": "Footprint: A Gamified Micro-Action Carbon Tracker for Eco-conscious consumers to understand, track, and reduce daily carbon emissions.",
+  "keywords": ["sustainability", "greentech", "carbon-tracker", "eco-friendly", "ghg", "gamification"],
+  "author": "Promptware Hackathon Team",
   "private": true,
   "workspaces": [
     "apps/*",

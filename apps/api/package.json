@@ -1,6 +1,7 @@
 {
   "name": "@footprint/api",
   "version": "1.0.0",
+  "description": "Footprint Backend API for Ingesting Carbon Telemetry and Gamification",
   "private": true,
   "type": "module",
   "main": "dist/server.js",

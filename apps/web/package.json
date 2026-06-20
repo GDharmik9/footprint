@@ -1,6 +1,7 @@
 {
   "name": "@footprint/web",
   "private": true,
+  "description": "Footprint Gamified Dashboard for Tracking Carbon Emissions",
   "version": "1.0.0",
   "type": "module",
   "scripts": {

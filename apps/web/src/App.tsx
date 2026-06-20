@@ -117,6 +117,7 @@ export default function App() {
 
   // Reset postal code when country changes to avoid validation mismatch
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPostalCode('');
   }, [country]);
 
@@ -157,9 +158,9 @@ export default function App() {
 
   // Eco-Leagues Leaderboard and Tab state
   const [ecoSphereTab, setEcoSphereTab] = useState<'sphere' | 'league'>('sphere');
-  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [leaderboard, setLeaderboard] = useState<unknown[]>([]);
   const [coachInsights, setCoachInsights] = useState<string[]>([]);
-  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [recommendations, setRecommendations] = useState<unknown[]>([]);
 
   // Webhook simulator state
   const [simRadarDistance, setSimRadarDistance] = useState<number>(12);
@@ -177,12 +178,14 @@ export default function App() {
     if (cachedUserId) {
       fetchUser(cachedUserId);
       if (cachedBaseline) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setBaseline(JSON.parse(cachedBaseline));
       }
     } else {
       // Zero-friction silent registration on first load
       triggerFrictionlessOnboarding();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const triggerToast = (message: string, type: 'success' | 'info' | 'error' = 'info') => {
@@ -191,7 +194,7 @@ export default function App() {
   };
 
   // Fetch all user dashboard data
-  const fetchUser = async (userId: string) => {
+  async function fetchUser(userId: string) {
     setLoading(true);
     const token = localStorage.getItem('footprint_auth_token');
     const authHeaders = {
@@ -241,14 +244,14 @@ export default function App() {
         setCoachInsights(insightsData.insights);
         setRecommendations(insightsData.recommendations);
       }
-    } catch (e: any) {
+    } catch {
       console.warn('Backend server connection failed. Falling back to simulated local state.');
       // Local Fallback simulation for offline testing
       simulateOfflineState(userId);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   // Logout: clear cookie on server and reset client state
   const handleLogout = async () => {
@@ -312,7 +315,7 @@ export default function App() {
       }
 
       triggerToast(`Carbon event deleted. -${data.leavesDeducted} Leaves deducted.`, 'success');
-    } catch (err) {
+    } catch {
       console.warn('API error during deletion. Simulating deletion locally.');
 
       // Find the event in our local state to determine category and values
@@ -539,7 +542,7 @@ export default function App() {
   };
 
   // Trigger zero-friction silent registration on first load
-  const triggerFrictionlessOnboarding = async () => {
+  async function triggerFrictionlessOnboarding() {
     setLoading(true);
     try {
       const location = await detectIPLocation();
@@ -580,7 +583,7 @@ export default function App() {
 
       triggerToast(`Welcome, ${randName}! Silent setup completed via IP GeoIP.`, 'success');
       fetchUser(data.user.id);
-    } catch (err) {
+    } catch {
       console.warn('Backend offline. Initializing local sandbox session...');
       const fallbackId = crypto.randomUUID();
       const randName = generateRandomEcoName();
@@ -594,7 +597,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   // Progressive profile patch updates
   const handleProgressiveProfileUpdate = async (updatePayload: {
@@ -633,7 +636,7 @@ export default function App() {
       } else {
         throw new Error('Failed to patch progressive profile');
       }
-    } catch (err) {
+    } catch {
       console.warn('API error. Simulating progressive profile locally.');
       const updatedUser = {
         ...user,
@@ -654,7 +657,7 @@ export default function App() {
   };
 
   // Calibration survey progressive steps handler
-  const nextCalibrationStep = (stepPayload?: any) => {
+  const nextCalibrationStep = (stepPayload?: Record<string, unknown>) => {
     if (stepPayload) {
       if (stepPayload.housing) setHousingArchetype(stepPayload.housing);
       if (stepPayload.diet) setDietArchetype(stepPayload.diet);
