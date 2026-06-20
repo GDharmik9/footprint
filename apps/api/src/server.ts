@@ -11,17 +11,10 @@ import {
   startPubSubSubscriber 
 } from './gcp.js';
 import { 
-  computeHousingCO2, 
-  computeTransportCO2, 
-  computeFoodCO2, 
-  GRID_FACTORS
-} from '@footprint/carbon-math';
-import { 
   authenticateToken, 
 } from './auth.js';
-import { getGridCarbonFactor } from './services/electricityMaps.js';
 import { startLeaguesEvaluationCron } from './services/cron.js';
-import { calculateLevel, calculateLeavesAwarded } from './utils.js';
+import { processIngestPayload } from './services/pubsubProcessor.js';
 
 import { registerUser, getUserDetails, updateUserProfile, getUserInsights, logoutUser } from './controllers/userController.js';
 import { getEvents, deleteEvent, createEvent } from './controllers/eventController.js';
@@ -112,62 +105,7 @@ if (isMain) {
   });
 
   // Start Pub/Sub background listener
-  startPubSubSubscriber(async (payload: any) => {
-    console.log('Pub/Sub subscriber processing payload:', payload);
-    const {
-      userId, category, source_provider, raw_value, raw_unit,
-      region_code, transportMode, dietType, housingOption, eventId, timestamp
-    } = payload;
-
-    let computedCO2 = 0;
-    let customRegionKey = region_code || 'default';
-
-    if (category === 'housing') {
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      const postalCode = user?.postalCode || '';
-      const gridFactor = await getGridCarbonFactor(postalCode);
-      customRegionKey = `custom-${postalCode}`;
-      GRID_FACTORS[customRegionKey] = gridFactor;
-      computedCO2 = computeHousingCO2(raw_value, housingOption || 'standard', customRegionKey);
-    } else if (category === 'transport') {
-      computedCO2 = computeTransportCO2(raw_value, transportMode || 'gas_car');
-    } else if (category === 'food') {
-      computedCO2 = computeFoodCO2(raw_value, dietType || 'balanced');
-    }
-
-    await prisma.carbonEvent.create({
-      data: {
-        id: eventId,
-        userId,
-        category,
-        sourceProvider: source_provider || 'manual',
-        rawValue: raw_value,
-        rawUnit: raw_unit,
-        computedCo2eKg: computedCO2,
-        regionCode: customRegionKey,
-        timestamp: new Date(timestamp)
-      }
-    });
-
-    const leavesAwarded = calculateLeavesAwarded(category, { transportMode, dietType, housingOption });
-
-    await prisma.league.updateMany({
-      where: { userId },
-      data: { leaves: { increment: leavesAwarded } }
-    });
-
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (user) {
-      const newLeaves = user.totalLeaves + leavesAwarded;
-      const newLevel = calculateLevel(newLeaves);
-      await prisma.user.update({
-        where: { id: userId },
-        data: { totalLeaves: newLeaves, currentLevel: newLevel }
-      });
-    }
-
-    console.log(`Subscriber processed event successfully: ${eventId}`);
-  }).catch(err => {
+  startPubSubSubscriber(processIngestPayload).catch(err => {
     console.error('Failed to start Pub/Sub subscriber:', err);
   });
 }
