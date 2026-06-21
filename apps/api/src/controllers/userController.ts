@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { prisma, seedUserChallenges, seedWeeklyLeague } from '../database.js';
@@ -13,13 +13,20 @@ import { AuthenticatedRequest, JWT_SECRET } from '../auth.js';
 import { getGridCarbonFactor } from '../services/electricityMaps.js';
 import { generateUserInsights } from '../services/insights.js';
 import { calculateLevel } from '../utils.js';
+import { ArchetypeOptions } from '@footprint/shared-types';
+
+interface HistoricalArchetype {
+  housing?: 'apartment' | 'townhouse' | 'family';
+  commute?: 'transit' | 'hybrid' | 'gas';
+  diet?: 'vegan' | 'balanced' | 'meat';
+}
 
 /**
  * Seeds baseline historical events for the last 6 months based on the chosen archetype.
  */
 export async function seedHistoricalEvents(
   userId: string,
-  archetype: any,
+  archetype: HistoricalArchetype | undefined,
   customRegionKey: string
 ): Promise<void> {
   const now = new Date();
@@ -81,7 +88,7 @@ export async function seedHistoricalEvents(
 }
 
 // 1. POST /api/users - Onboarding Archetype Selection (Open endpoint)
-export async function registerUser(req: any, res: Response): Promise<void> {
+export async function registerUser(req: Request, res: Response): Promise<void> {
   try {
     const { display_name, postal_code, archetype } = req.body;
     if (!display_name) {
@@ -149,8 +156,8 @@ export async function registerUser(req: any, res: Response): Promise<void> {
     } else {
       res.status(500).json({ error: 'Failed to retrieve created user' });
     }
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }
 
@@ -175,9 +182,14 @@ export async function getUserDetails(req: AuthenticatedRequest, res: Response): 
       postal_code: user.postalCode,
       created_at: user.createdAt.toISOString()
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
+}
+
+interface UpdateUserPayload {
+  displayName?: string;
+  postalCode?: string;
 }
 
 // 2b. PATCH /api/users/:id - Update user details & archetype (Secured)
@@ -198,7 +210,7 @@ export async function updateUserProfile(req: AuthenticatedRequest, res: Response
       return;
     }
 
-    const updateData: any = {};
+    const updateData: UpdateUserPayload = {};
     if (displayName) {
       updateData.displayName = displayName;
     }
@@ -258,8 +270,8 @@ export async function updateUserProfile(req: AuthenticatedRequest, res: Response
       } : null,
       baseline
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }
 
@@ -273,13 +285,13 @@ export async function getUserInsights(req: AuthenticatedRequest, res: Response):
 
     const insightsData = await generateUserInsights(req.params.id);
     res.json(insightsData);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }
 
 // 2d. POST /api/auth/logout - Clear user authentication cookie (Open/Secured)
-export async function logoutUser(req: any, res: Response): Promise<void> {
+export async function logoutUser(req: Request, res: Response): Promise<void> {
   res.clearCookie('footprint_auth_token', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

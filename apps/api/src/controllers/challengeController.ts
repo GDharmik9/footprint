@@ -19,7 +19,7 @@ export async function getChallenges(req: AuthenticatedRequest, res: Response): P
     const challenges: Challenge[] = rows.map(r => ({
       id: r.id,
       userId: r.userId,
-      type: r.type as any,
+      type: r.type as 'cold-wash' | 'vampire-hunt',
       title: r.title,
       description: r.description,
       rewardLeaves: r.rewardLeaves,
@@ -32,8 +32,8 @@ export async function getChallenges(req: AuthenticatedRequest, res: Response): P
     }));
 
     res.json(challenges);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }
 
@@ -107,7 +107,7 @@ export async function updateChallengeProgress(req: AuthenticatedRequest, res: Re
     const updatedChallenge: Challenge = {
       id: updatedRow.id,
       userId: updatedRow.userId,
-      type: updatedRow.type as any,
+      type: updatedRow.type as 'cold-wash' | 'vampire-hunt',
       title: updatedRow.title,
       description: updatedRow.description,
       rewardLeaves: updatedRow.rewardLeaves,
@@ -135,7 +135,7 @@ export async function updateChallengeProgress(req: AuthenticatedRequest, res: Re
       rewardAwarded,
       leavesAwarded
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }

@@ -11,6 +11,7 @@ import {
 import { AuthenticatedRequest } from '../auth.js';
 import { getGridCarbonFactor } from '../services/electricityMaps.js';
 import { calculateLevel, calculateLeavesAwarded } from '../utils.js';
+import { IngestCarbonEventPayload } from '@footprint/shared-types';
 
 // 3. GET /api/carbon-events/:userId - Retrieve carbon footprint logs (Secured)
 export async function getEvents(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -35,8 +36,8 @@ export async function getEvents(req: AuthenticatedRequest, res: Response): Promi
       region_code: e.regionCode,
       timestamp: e.timestamp.toISOString()
     })));
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }
 
@@ -141,8 +142,8 @@ export async function deleteEvent(req: AuthenticatedRequest, res: Response): Pro
       leavesDeducted,
       user: updatedUser
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }
 
@@ -187,32 +188,20 @@ export async function createEvent(req: AuthenticatedRequest, res: Response): Pro
     const eventId = crypto.randomUUID();
     const timestamp = new Date().toISOString();
 
-    // Publish ingestion payload to GCP Pub/Sub
-    await publishCarbonEvent({
+    const payload: IngestCarbonEventPayload = {
       userId,
       category,
       source_provider: source_provider || 'manual',
       raw_value,
       raw_unit,
       region_code: customRegionKey,
-      transportMode,
-      dietType,
-      housingOption,
-      eventId,
       timestamp
-    } as any);
+    };
+
+    // Publish ingestion payload to GCP Pub/Sub
+    await publishCarbonEvent(payload);
 
     const leavesAwarded = calculateLeavesAwarded(category, { transportMode, dietType, housingOption });
-
-    // Update leaves inside the user's active competitive league standing
-    await prisma.league.updateMany({
-      where: { userId },
-      data: {
-        leaves: {
-          increment: leavesAwarded
-        }
-      }
-    });
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
     const updatedUser = user 
@@ -239,7 +228,7 @@ export async function createEvent(req: AuthenticatedRequest, res: Response): Pro
     };
 
     res.status(201).json({ event: projectedEvent, user: updatedUser, leavesAwarded });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }

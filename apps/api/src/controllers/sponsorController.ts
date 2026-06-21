@@ -94,8 +94,8 @@ export async function redeemVoucher(req: AuthenticatedRequest, res: Response): P
         created_at: userUpdated.createdAt.toISOString()
       } : null
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }
 
@@ -122,8 +122,8 @@ export async function getVouchers(req: AuthenticatedRequest, res: Response): Pro
       costLeaves: v.costLeaves,
       redeemedAt: v.redeemedAt.toISOString()
     })));
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }
 
@@ -164,7 +164,7 @@ export async function getLeaguesLeaderboard(req: AuthenticatedRequest, res: Resp
     sorted.sort((a, b) => b.leaves - a.leaves);
     
     res.json(sorted);
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }

@@ -44,7 +44,7 @@ export async function triggerTreePlanting(userId: string, count: number): Promis
       throw new Error(`Eden Projects API returned status ${response.status}`);
     }
 
-    const data = await response.json() as any;
+    const data = await response.json() as { tree_id?: string; tracking_url?: string };
     return {
       success: true,
       treeId: data.tree_id || crypto.randomUUID(),

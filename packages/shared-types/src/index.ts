@@ -60,6 +60,10 @@ export interface IngestCarbonEventPayload {
   raw_unit: string;
   region_code?: string;
   timestamp?: string;
+  transportMode?: 'transit' | 'ev' | 'hybrid' | 'suv' | 'gas_car' | 'default';
+  dietType?: 'vegan' | 'vegetarian' | 'balanced' | 'meat';
+  housingOption?: 'standard' | 'smart_nest' | 'solar' | 'smart_thermostat';
+  eventId?: string;
 }
 
 export interface GCPConfig {

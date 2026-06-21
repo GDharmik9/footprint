@@ -28,7 +28,7 @@ export async function processIngestPayload(payload: IngestCarbonEventPayload): P
     housingOption,
     eventId,
     timestamp
-  } = payload as any;
+  } = payload;
 
   let computedCO2 = 0;
   let customRegionKey = region_code || 'default';
@@ -39,17 +39,17 @@ export async function processIngestPayload(payload: IngestCarbonEventPayload): P
     const gridFactor = await getGridCarbonFactor(postalCode);
     customRegionKey = `custom-${postalCode}`;
     GRID_FACTORS[customRegionKey] = gridFactor;
-    computedCO2 = computeHousingCO2(raw_value, housingOption || 'standard', customRegionKey);
+    computedCO2 = computeHousingCO2(raw_value, (housingOption as any) || 'standard', customRegionKey);
   } else if (category === 'transport') {
-    computedCO2 = computeTransportCO2(raw_value, transportMode || 'gas_car');
+    computedCO2 = computeTransportCO2(raw_value, (transportMode as any) || 'gas_car');
   } else if (category === 'food') {
-    computedCO2 = computeFoodCO2(raw_value, dietType || 'balanced');
+    computedCO2 = computeFoodCO2(raw_value, (dietType as any) || 'balanced');
   }
 
   // Persist the carbon event
   await prisma.carbonEvent.create({
     data: {
-      id: eventId,
+      id: eventId || crypto.randomUUID(),
       userId,
       category,
       sourceProvider: source_provider || 'manual',
@@ -57,7 +57,7 @@ export async function processIngestPayload(payload: IngestCarbonEventPayload): P
       rawUnit: raw_unit,
       computedCo2eKg: computedCO2,
       regionCode: customRegionKey,
-      timestamp: new Date(timestamp)
+      timestamp: new Date(timestamp || Date.now())
     }
   });
 

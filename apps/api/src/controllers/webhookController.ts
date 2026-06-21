@@ -7,6 +7,7 @@ import { fetchNestThermostatStatus } from '../services/nest.js';
 import { evaluateCompetitiveLeagues } from '../services/cron.js';
 import { calculateLevel } from '../utils.js';
 import { AuthenticatedRequest } from '../auth.js';
+import { IngestCarbonEventPayload } from '@footprint/shared-types';
 
 // 10. POST /api/webhooks/radar - Ingest trip summaries from Radar.io SDK (Open/Mock with security)
 export async function handleRadarWebhook(req: Request, res: Response): Promise<void> {
@@ -43,20 +44,21 @@ export async function handleRadarWebhook(req: Request, res: Response): Promise<v
     const eventId = crypto.randomUUID();
     const timestamp = new Date().toISOString();
 
-    await publishCarbonEvent({
+    const payload: IngestCarbonEventPayload = {
       userId,
       category: 'transport',
       source_provider: 'radar_sdk',
       raw_value: distanceMiles,
       raw_unit: 'miles',
-      transportMode: transportMode || 'gas_car',
-      eventId,
+      region_code: undefined,
       timestamp
-    } as any);
+    };
+
+    await publishCarbonEvent(payload);
 
     res.json({ status: 'queued', eventId, distanceMiles, mode: transportMode });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }
 
@@ -79,20 +81,21 @@ export async function handleArcadiaWebhook(req: Request, res: Response): Promise
     const eventId = crypto.randomUUID();
     const timestamp = new Date().toISOString();
 
-    await publishCarbonEvent({
+    const payload: IngestCarbonEventPayload = {
       userId,
       category: 'housing',
       source_provider: 'arcadia',
       raw_value: kwh,
       raw_unit: 'kWh',
-      housingOption: 'standard',
-      eventId,
+      region_code: undefined,
       timestamp
-    } as any);
+    };
+
+    await publishCarbonEvent(payload);
 
     res.json({ status: 'queued', eventId, kwh });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }
 
@@ -146,8 +149,8 @@ export async function handleNestWebhook(req: Request, res: Response): Promise<vo
       ambientTemperature: status.ambientTempCelsius,
       user: updatedUser
     });
-  } catch (error: any) {
-    res.status(500).json({ error: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }
 
@@ -162,13 +165,11 @@ export async function handleArcadiaCallback(req: AuthenticatedRequest, res: Resp
     }
 
     console.log(`Arcadia callback: Exchanging authCode ${authCode} for utility token for user ${userId}...`);
-    // In production, we call Arcadia's token exchange endpoint:
-    // POST https://api.arcadia.com/v2/tokens
     const mockUtilityToken = `arcadia_token_${crypto.randomBytes(8).toString('hex')}`;
     
     res.status(200).json({ status: 'connected', utilityToken: mockUtilityToken });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }
 
@@ -177,7 +178,7 @@ export async function evaluateLeaguesAdmin(req: Request, res: Response): Promise
   try {
     await evaluateCompetitiveLeagues();
     res.json({ status: 'success', message: 'Leagues evaluation completed successfully' });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
+  } catch (error: unknown) {
+    res.status(500).json({ error: (error as Error).message });
   }
 }

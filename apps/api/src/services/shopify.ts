@@ -53,7 +53,7 @@ export async function generateShopifyDiscountCode(
       throw new Error(`Shopify API returned status ${response.status}`);
     }
 
-    const data = await response.json() as any;
+    const data = await response.json() as { discount_code?: { code?: string } };
     return {
       success: true,
       couponCode: data.discount_code?.code || generatedCode

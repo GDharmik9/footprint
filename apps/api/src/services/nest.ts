@@ -48,9 +48,23 @@ export async function fetchNestThermostatStatus(userId: string): Promise<NestSta
       throw new Error(`Nest SDM API returned status ${response.status}`);
     }
 
-    const data = await response.json() as any;
-    // Find first thermostat device in enterprise
-    const thermostat = data.devices?.find((d: any) => d.type === 'sdm.devices.types.THERMOSTAT');
+    interface ThermostatDevice {
+      type: string;
+      traits?: {
+        'sdm.devices.traits.Temperature'?: {
+          ambientTemperatureCelsius: number;
+        };
+        'sdm.devices.traits.ThermostatEco'?: {
+          mode: 'MANUAL_ECO' | 'OFF';
+        };
+        'sdm.devices.traits.ThermostatHvac'?: {
+          status: 'HEATING' | 'COOLING' | 'OFF';
+        };
+      };
+    }
+
+    const data = await response.json() as { devices?: ThermostatDevice[] };
+    const thermostat = data.devices?.find((d) => d.type === 'sdm.devices.types.THERMOSTAT');
     if (!thermostat) {
       throw new Error('No thermostat devices found in user Nest Account');
     }
