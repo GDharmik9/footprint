@@ -6,4 +6,6 @@ dist/
 .cache/
 .DS_Store
 .gemini/
-## coverage/
+coverage/
+lint-errors.json
+lint.txt
