@@ -65,33 +65,36 @@ export default function CalibrationSurvey({
             What type of home infrastructure best represents your living situation? This sets your housing baseline.
           </p>
           <div className="grid-selector" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-            <div
+            <button
+              type="button"
               className={`selector-option ${housingArchetype === 'apartment' ? 'selected' : ''}`}
               onClick={() => nextCalibrationStep({ housing: 'apartment' })}
-              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s', color: 'inherit', fontFamily: 'inherit', width: '100%' }}
             >
               <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🏢</span>
               <strong style={{ display: 'block', fontSize: '14px' }}>City Apartment</strong>
               <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Shared walls, low utility load</span>
-            </div>
-            <div
+            </button>
+            <button
+              type="button"
               className={`selector-option ${housingArchetype === 'townhouse' ? 'selected' : ''}`}
               onClick={() => nextCalibrationStep({ housing: 'townhouse' })}
-              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s', color: 'inherit', fontFamily: 'inherit', width: '100%' }}
             >
               <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🏡</span>
               <strong style={{ display: 'block', fontSize: '14px' }}>Townhouse</strong>
               <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Moderate spacing and utilities</span>
-            </div>
-            <div
+            </button>
+            <button
+              type="button"
               className={`selector-option ${housingArchetype === 'family' ? 'selected' : ''}`}
               onClick={() => nextCalibrationStep({ housing: 'family' })}
-              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s', color: 'inherit', fontFamily: 'inherit', width: '100%' }}
             >
               <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🏰</span>
               <strong style={{ display: 'block', fontSize: '14px' }}>Single Family Home</strong>
               <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Detached, higher heating load</span>
-            </div>
+            </button>
           </div>
         </div>
       )}
@@ -102,33 +105,36 @@ export default function CalibrationSurvey({
             How would you describe your typical dietary choices? Food accounts for up to a third of personal emissions.
           </p>
           <div className="grid-selector" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-            <div
+            <button
+              type="button"
               className={`selector-option ${dietArchetype === 'vegan' ? 'selected' : ''}`}
               onClick={() => nextCalibrationStep({ diet: 'vegan' })}
-              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s', color: 'inherit', fontFamily: 'inherit', width: '100%' }}
             >
               <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🥗</span>
               <strong style={{ display: 'block', fontSize: '14px' }}>Plant-Forward</strong>
               <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Vegan or vegetarian baseline</span>
-            </div>
-            <div
+            </button>
+            <button
+              type="button"
               className={`selector-option ${dietArchetype === 'balanced' ? 'selected' : ''}`}
               onClick={() => nextCalibrationStep({ diet: 'balanced' })}
-              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s', color: 'inherit', fontFamily: 'inherit', width: '100%' }}
             >
               <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🍗</span>
               <strong style={{ display: 'block', fontSize: '14px' }}>Balanced</strong>
               <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>White meat, grains, low red meat</span>
-            </div>
-            <div
+            </button>
+            <button
+              type="button"
               className={`selector-option ${dietArchetype === 'meat' ? 'selected' : ''}`}
               onClick={() => nextCalibrationStep({ diet: 'meat' })}
-              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s', color: 'inherit', fontFamily: 'inherit', width: '100%' }}
             >
               <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🥩</span>
               <strong style={{ display: 'block', fontSize: '14px' }}>Meat Enthusiast</strong>
               <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Regular beef, pork, dairy heavy</span>
-            </div>
+            </button>
           </div>
         </div>
       )}
@@ -139,33 +145,36 @@ export default function CalibrationSurvey({
             How do you typically commute or travel? Transport represents the largest source of transit emissions.
           </p>
           <div className="grid-selector" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-            <div
+            <button
+              type="button"
               className={`selector-option ${commuteArchetype === 'transit' ? 'selected' : ''}`}
               onClick={() => nextCalibrationStep({ commute: 'transit' })}
-              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s', color: 'inherit', fontFamily: 'inherit', width: '100%' }}
             >
               <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🚲</span>
               <strong style={{ display: 'block', fontSize: '14px' }}>Transit / Bike / Walk</strong>
               <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Subway, bus, active modes</span>
-            </div>
-            <div
+            </button>
+            <button
+              type="button"
               className={`selector-option ${commuteArchetype === 'hybrid' ? 'selected' : ''}`}
               onClick={() => nextCalibrationStep({ commute: 'hybrid' })}
-              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s', color: 'inherit', fontFamily: 'inherit', width: '100%' }}
             >
               <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🔌</span>
               <strong style={{ display: 'block', fontSize: '14px' }}>Hybrid / EV</strong>
               <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Efficient electric/hybrid vehicle</span>
-            </div>
-            <div
+            </button>
+            <button
+              type="button"
               className={`selector-option ${commuteArchetype === 'gas' ? 'selected' : ''}`}
               onClick={() => nextCalibrationStep({ commute: 'gas' })}
-              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s' }}
+              style={{ cursor: 'pointer', padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'rgba(0,0,0,0.2)', transition: 'all 0.2s', color: 'inherit', fontFamily: 'inherit', width: '100%' }}
             >
               <span style={{ fontSize: '24px', display: 'block', marginBottom: '8px' }}>🚗</span>
               <strong style={{ display: 'block', fontSize: '14px' }}>SUV / Sedan</strong>
               <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>Standard gas-powered vehicle</span>
-            </div>
+            </button>
           </div>
         </div>
       )}

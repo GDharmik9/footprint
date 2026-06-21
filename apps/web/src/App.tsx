@@ -40,6 +40,12 @@ import {
   detectIPLocation,
   type Recommendation
 } from './utils/dashboardUtils';
+import {
+  simulateOfflineState as runSimulateOfflineState,
+  calculateLocalLeavesAwarded,
+  simulateOfflineChallengeToggle,
+  simulateOfflineRedeemVoucher
+} from './utils/offlineSandbox';
 
 const API_BASE = 'http://localhost:3001/api';
 
@@ -155,54 +161,47 @@ export default function App() {
       'Authorization': `Bearer ${token}`
     };
     const fetchOpts = { headers: authHeaders, credentials: 'include' as RequestCredentials };
+
+    // Setup an AbortController with a 2-second timeout to prevent API hangs when DB is down
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+
     try {
       // 1. Fetch User status
-      const userRes = await fetch(`${API_BASE}/users/${userId}`, fetchOpts);
+      const userRes = await fetch(`${API_BASE}/users/${userId}`, { ...fetchOpts, signal: controller.signal });
       if (!userRes.ok) throw new Error('User not found on server');
       const userData = await userRes.json();
       setUser(userData);
       localStorage.setItem('footprint_user_id', userId);
 
-      // 2. Fetch history
-      const historyRes = await fetch(`${API_BASE}/carbon-events/${userId}`, fetchOpts);
-      if (historyRes.ok) {
-        const historyData = await historyRes.json();
-        setEvents(historyData);
-      }
-
-      // 3. Fetch active challenges
-      const challengesRes = await fetch(`${API_BASE}/challenges/${userId}`, fetchOpts);
-      if (challengesRes.ok) {
-        const challengesData = await challengesRes.json();
-        setChallenges(challengesData);
-      }
-
-      // 4. Fetch vouchers
-      const vouchersRes = await fetch(`${API_BASE}/vouchers/${userId}`, fetchOpts);
-      if (vouchersRes.ok) {
-        const vouchersData = await vouchersRes.json();
-        setVouchers(vouchersData);
-      }
-
-      // 5. Fetch Eco-Leagues leaderboard
-      const leagueRes = await fetch(`${API_BASE}/leagues/${userId}`, fetchOpts);
-      if (leagueRes.ok) {
-        const leagueData = await leagueRes.json();
-        setLeaderboard(leagueData);
-      }
-
-      // 6. Fetch personalized AI insights
-      const insightsRes = await fetch(`${API_BASE}/users/${userId}/insights`, fetchOpts);
-      if (insightsRes.ok) {
-        const insightsData = await insightsRes.json();
-        setCoachInsights(insightsData.insights);
-        setRecommendations(insightsData.recommendations);
-      }
+      // 2. Fetch history, challenges, vouchers, leagues, and insights in parallel
+      await Promise.allSettled([
+        fetch(`${API_BASE}/carbon-events/${userId}`, { ...fetchOpts, signal: controller.signal }).then(async res => {
+          if (res.ok) setEvents(await res.json());
+        }),
+        fetch(`${API_BASE}/challenges/${userId}`, { ...fetchOpts, signal: controller.signal }).then(async res => {
+          if (res.ok) setChallenges(await res.json());
+        }),
+        fetch(`${API_BASE}/vouchers/${userId}`, { ...fetchOpts, signal: controller.signal }).then(async res => {
+          if (res.ok) setVouchers(await res.json());
+        }),
+        fetch(`${API_BASE}/leagues/${userId}`, { ...fetchOpts, signal: controller.signal }).then(async res => {
+          if (res.ok) setLeaderboard(await res.json());
+        }),
+        fetch(`${API_BASE}/users/${userId}/insights`, { ...fetchOpts, signal: controller.signal }).then(async res => {
+          if (res.ok) {
+            const data = await res.json();
+            setCoachInsights(data.insights);
+            setRecommendations(data.recommendations);
+          }
+        })
+      ]);
     } catch {
-      console.warn('Backend server connection failed. Falling back to simulated local state.');
+      console.warn('Backend server connection failed or timed out. Falling back to simulated local state.');
       // Local Fallback simulation for offline testing
       simulateOfflineState(userId);
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   }
@@ -331,168 +330,24 @@ export default function App() {
       setLoading(false);
     }
   };
-
   // Offline Simulation Mode (highly robust testing fallback)
   const simulateOfflineState = (userId: string) => {
-    const mockUser: User = {
-      id: userId,
-      display_name: displayName || 'Eco Champion',
-      current_level: 1,
-      total_leaves: 120,
-      postal_code: postalCode || '90210',
-      created_at: new Date().toISOString()
-    };
-    setUser(mockUser);
-
-    const mockBaseline = computeArchetypeBaseline({
-      housing: housingArchetype,
-      diet: dietArchetype,
-      commute: commuteArchetype
-    });
-    setBaseline(mockBaseline);
-    localStorage.setItem('footprint_baseline', JSON.stringify(mockBaseline));
-
-    // Simulate 6 months of historical events
-    const mockEvents: CarbonEvent[] = [];
-    const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const ts = new Date(now.getFullYear(), now.getMonth() - i, 15).toISOString();
-      mockEvents.push({
-        id: `m-h-${i}`,
-        user_id: userId,
-        category: 'housing',
-        source_provider: 'manual',
-        raw_value: mockBaseline.housing / 12,
-        raw_unit: 'kWh',
-        computed_co2e_kg: parseFloat((mockBaseline.housing / 12 * 0.38).toFixed(1)),
-        timestamp: ts
-      });
-      mockEvents.push({
-        id: `m-t-${i}`,
-        user_id: userId,
-        category: 'transport',
-        source_provider: 'manual',
-        raw_value: mockBaseline.transport / 12,
-        raw_unit: 'miles',
-        computed_co2e_kg: parseFloat((mockBaseline.transport / 12 * 0.3).toFixed(1)),
-        timestamp: ts
-      });
-      mockEvents.push({
-        id: `m-f-${i}`,
-        user_id: userId,
-        category: 'food',
-        source_provider: 'manual',
-        raw_value: 90,
-        raw_unit: 'meals',
-        computed_co2e_kg: parseFloat((90 * (dietArchetype === 'vegan' ? 0.5 : dietArchetype === 'meat' ? 3.0 : 1.5)).toFixed(1)),
-        timestamp: ts
-      });
-    }
-    setEvents(mockEvents);
-
-    // Initial challenges setup
-    setChallenges([
-      {
-        id: `cw-${userId}`,
-        userId,
-        type: 'cold-wash',
-        title: 'The Cold-Wash Campaign 🧺',
-        description: 'Run all laundry washes using cold water settings for 7 consecutive days.',
-        rewardLeaves: 100,
-        targetDays: 7,
-        currentStreak: 0,
-        completed: false,
-        progressLogs: [false, false, false, false, false, false, false],
-        rewardApplied: false,
-        updatedAt: now.toISOString()
-      },
-      {
-        id: `vh-${userId}`,
-        userId,
-        type: 'vampire-hunt',
-        title: 'The Vampire Hunt 🧛‍♂️',
-        description: 'Disconnect 3 standby home electronics (consoles, idle chargers, secondary displays) before sleeping for 7 consecutive days.',
-        rewardLeaves: 120,
-        targetDays: 7,
-        currentStreak: 0,
-        completed: false,
-        progressLogs: [false, false, false, false, false, false, false],
-        rewardApplied: false,
-        updatedAt: now.toISOString()
-      }
-    ]);
-
-    // Initial local mock leaderboard setup
-    const mockLeague = [
-      { id: 'user-id', userId, username: displayName || 'Eco Champion', leaves: mockUser.total_leaves, level: mockUser.current_level, isMock: false },
-      ...Array.from({ length: 29 }, (_, idx) => {
-        const names = [
-          'Ivy Green', 'Moss Ranger', 'Fern Forest', 'Pine Seedling', 'Sage Leaf',
-          'Willow Branch', 'Cedar Sprout', 'Olive Grove', 'Emerald Spark', 'Hazel Nut',
-          'Forest Shade', 'Meadow Grass', 'Clover Patch', 'Bamboo Stem', 'Laurel Wreath',
-          'Birch Bark', 'Maple Syrup', 'Oak Acorn', 'Heather Bloom', 'Lily Pad',
-          'Flora Eco', 'Sprout Master', 'Herb Garden', 'Lichen Rock', 'Sequoia Giant',
-          'Bonsai Caret', 'Lotus Petal', 'Minty Fresh', 'Basil Sweet'
-        ];
-        // seed leaves between 50 and 600
-        const leaves = Math.floor(50 + (idx * 17.5) + Math.random() * 20);
-        return {
-          id: `mock-l-${idx}`,
-          userId: `mock-u-${idx}`,
-          username: names[idx] || `Eco Competitor ${idx}`,
-          leaves,
-          level: calculateLevel(leaves),
-          isMock: true
-        };
-      })
-    ];
-    mockLeague.sort((a, b) => b.leaves - a.leaves);
-    setLeaderboard(mockLeague);
-
-    // Simulate insights and micro-actions offline
-    const simulatedInsights = [
-      `💡 Your simulated transit emissions are ${commuteArchetype === 'gas' ? 'above average' : 'optimized'}. Try public transit commutes to reduce it.`,
-      `🥗 Your diet choices are set to '${dietArchetype}'. Transitioning to plant-based meals cuts food footprint by 60%.`,
-      `🏠 Your home grid setup is '${housingArchetype}'. Smart Nest thermostats can shave off up to 15% of annual heating.`
-    ];
-    setCoachInsights(simulatedInsights);
-
-    const simulatedRecs = [
-      {
-        id: 'rec-vegan-1',
-        title: 'Eat a Plant-Based Meal 🥗',
-        description: 'Replace standard animal proteins with a plant-based alternative for one meal today.',
-        category: 'food' as const,
-        type: 'vegan',
-        value: 1,
-        unit: 'meals',
-        impactKg: 1.0,
-        rewardLeaves: 25
-      },
-      {
-        id: 'rec-transit-5',
-        title: 'Ditch the Drive (5 mi) 🚲',
-        description: 'Take public transit, walk, or bike for 5 miles instead of driving a gas car.',
-        category: 'transport' as const,
-        type: 'transit',
-        value: 5,
-        unit: 'miles',
-        impactKg: 1.5,
-        rewardLeaves: 30
-      },
-      {
-        id: 'rec-solar-15',
-        title: 'Clean Solar Generation (15 kWh) ☀️',
-        description: 'Log 15 kWh of clean electricity generated from household solar panel systems.',
-        category: 'housing' as const,
-        type: 'solar',
-        value: 15,
-        unit: 'kWh',
-        impactKg: 5.7,
-        rewardLeaves: 35
-      }
-    ];
-    setRecommendations(simulatedRecs);
+    const data = runSimulateOfflineState(
+      userId,
+      displayName,
+      postalCode,
+      housingArchetype,
+      dietArchetype,
+      commuteArchetype
+    );
+    setUser(data.user);
+    setBaseline(data.baseline);
+    localStorage.setItem('footprint_baseline', JSON.stringify(data.baseline));
+    setEvents(data.events);
+    setChallenges(data.challenges);
+    setLeaderboard(data.leaderboard);
+    setCoachInsights(data.insights);
+    setRecommendations(data.recommendations);
   };
 
   // Trigger zero-friction silent registration on first load
@@ -697,14 +552,7 @@ export default function App() {
       setEvents(prev => [newEvent, ...prev]);
 
       // Award leaves local mock
-      let leavesAwarded = 15;
-      if (category === 'transport' && (modeOrOption === 'ev' || modeOrOption === 'transit')) {
-        leavesAwarded += 15;
-      } else if (category === 'food' && modeOrOption === 'vegan') {
-        leavesAwarded += 10;
-      } else if (category === 'housing' && modeOrOption === 'solar') {
-        leavesAwarded += 20;
-      }
+      const leavesAwarded = calculateLocalLeavesAwarded(category, modeOrOption);
 
       const newLeaves = user.total_leaves + leavesAwarded;
       const newLevel = calculateLevel(newLeaves);
@@ -863,48 +711,19 @@ export default function App() {
       }
     } catch {
       // Offline fallback toggle
-      const challenge = challenges.find(c => c.type === challengeType);
-      if (challenge) {
-        const updatedLogs = [...challenge.progressLogs];
-        updatedLogs[dayIndex] = !currentCompleted;
+      const result = simulateOfflineChallengeToggle(challenges, challengeType, dayIndex, currentCompleted, user);
+      if (result) {
+        setChallenges(challenges.map(c => c.type === challengeType ? result.updatedChallenge : c));
+        setUser(result.updatedUser);
 
-        let currentStreak = 0;
-        for (const log of updatedLogs) {
-          if (log) currentStreak++;
-          else break;
-        }
-
-        const isCompleted = updatedLogs.filter(Boolean).length === 7;
-        let rewardAwarded = false;
-        let leavesAwarded = 0;
-        const updatedUser = { ...user };
-
-        if (isCompleted && !challenge.rewardApplied) {
-          rewardAwarded = true;
-          leavesAwarded = challenge.rewardLeaves;
-          updatedUser.total_leaves += leavesAwarded;
-          updatedUser.current_level = calculateLevel(updatedUser.total_leaves);
-        }
-
-        const updatedChallenge: Challenge = {
-          ...challenge,
-          progressLogs: updatedLogs,
-          currentStreak,
-          completed: isCompleted,
-          rewardApplied: isCompleted || challenge.rewardApplied
-        };
-
-        setChallenges(challenges.map(c => c.type === challengeType ? updatedChallenge : c));
-        setUser(updatedUser);
-
-        if (rewardAwarded) {
-          const newLeaves = updatedUser.total_leaves;
-          const newLevel = updatedUser.current_level;
+        if (result.rewardAwarded) {
+          const newLeaves = result.updatedUser.total_leaves;
+          const newLevel = result.updatedUser.current_level;
           setLeaderboard(prev => {
             const updated = prev.map(m => m.userId === user.id ? { ...m, leaves: newLeaves, level: newLevel } : m);
             return [...updated].sort((a, b) => b.leaves - a.leaves);
           });
-          triggerToast(`Local Mode: Challenge Completed! Earned +${leavesAwarded} Leaves! 🏆`, 'success');
+          triggerToast(`Local Mode: Challenge Completed! Earned +${result.leavesAwarded} Leaves! 🏆`, 'success');
         } else {
           triggerToast(`Local Mode: Toggled Day ${dayIndex + 1}.`);
         }
@@ -949,37 +768,11 @@ export default function App() {
       }
     } catch {
       // Offline fallback
-      const newLeaves = user.total_leaves - costLeaves;
-      const newLevel = calculateLevel(newLeaves);
-      const updatedUser = {
-        ...user,
-        total_leaves: newLeaves,
-        current_level: newLevel
-      };
-
-      const codeSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
-      const code = rewardType === 'discount'
-        ? `OATLY-15-${codeSuffix}`
-        : rewardType === 'plug'
-          ? `ARCADIA-PLUG-${codeSuffix}`
-          : undefined;
-
-      const newVoucher: Voucher = {
-        id: crypto.randomUUID(),
-        userId: user.id,
-        sponsorName,
-        title: rewardType === 'tree' ? 'Eden Projects tree planting' : rewardType === 'discount' ? '15% Off Oatly Products' : 'Smart Utility energy plug',
-        description: rewardType === 'tree' ? '1 physical tree has been funded in your name.' : rewardType === 'discount' ? 'Get 15% discount checkout coupon code funded by Oatly.' : 'A complimentary Smart Energy plug delivered to your doorstep.',
-        rewardType,
-        couponCode: code,
-        costLeaves,
-        redeemedAt: new Date().toISOString()
-      };
-
-      setVouchers([newVoucher, ...vouchers]);
-      setUser(updatedUser);
+      const result = simulateOfflineRedeemVoucher(sponsorName, rewardType, costLeaves, user);
+      setVouchers([result.newVoucher, ...vouchers]);
+      setUser(result.updatedUser);
       setLeaderboard(prev => {
-        const updated = prev.map(m => m.userId === user.id ? { ...m, leaves: newLeaves, level: newLevel } : m);
+        const updated = prev.map(m => m.userId === user.id ? { ...m, leaves: result.updatedUser.total_leaves, level: result.updatedUser.current_level } : m);
         return [...updated].sort((a, b) => b.leaves - a.leaves);
       });
       triggerToast(`Local Mode: Redeemed ${costLeaves} Leaves successfully!`, 'success');

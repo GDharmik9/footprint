@@ -99,90 +99,108 @@ export default function OnboardingFlow({
           <div className="archetype-section">
             <h3>1. Housing Infrastructure</h3>
             <div className="grid-selector">
-              <div
+              <button
+                type="button"
                 className={`selector-option ${housingArchetype === 'apartment' ? 'selected' : ''}`}
                 onClick={() => setHousingArchetype('apartment')}
+                style={{ color: 'inherit', fontFamily: 'inherit', width: '100%' }}
               >
                 <span className="icon">🏢</span>
                 <span className="option-label">City Apartment</span>
                 <span className="option-desc">Shared walls, low heating requirements</span>
-              </div>
-              <div
+              </button>
+              <button
+                type="button"
                 className={`selector-option ${housingArchetype === 'townhouse' ? 'selected' : ''}`}
                 onClick={() => setHousingArchetype('townhouse')}
+                style={{ color: 'inherit', fontFamily: 'inherit', width: '100%' }}
               >
                 <span className="icon">🏡</span>
                 <span className="option-label">Townhouse</span>
                 <span className="option-desc">Moderate spacing and utility use</span>
-              </div>
-              <div
+              </button>
+              <button
+                type="button"
                 className={`selector-option ${housingArchetype === 'family' ? 'selected' : ''}`}
                 onClick={() => setHousingArchetype('family')}
+                style={{ color: 'inherit', fontFamily: 'inherit', width: '100%' }}
               >
                 <span className="icon">🏰</span>
                 <span className="option-label">Single Family</span>
                 <span className="option-desc">Detached setup, high heating/cooling</span>
-              </div>
+              </button>
             </div>
           </div>
 
           <div className="archetype-section">
             <h3>2. Commute & Transit</h3>
             <div className="grid-selector">
-              <div
+              <button
+                type="button"
                 className={`selector-option ${commuteArchetype === 'transit' ? 'selected' : ''}`}
                 onClick={() => setCommuteArchetype('transit')}
+                style={{ color: 'inherit', fontFamily: 'inherit', width: '100%' }}
               >
                 <span className="icon">🚲</span>
                 <span className="option-label">Transit / Bike</span>
                 <span className="option-desc">Subway, bus, cycle, walking options</span>
-              </div>
-              <div
+              </button>
+              <button
+                type="button"
                 className={`selector-option ${commuteArchetype === 'hybrid' ? 'selected' : ''}`}
                 onClick={() => setCommuteArchetype('hybrid')}
+                style={{ color: 'inherit', fontFamily: 'inherit', width: '100%' }}
               >
                 <span className="icon">🔌</span>
                 <span className="option-label">Hybrid / EV</span>
                 <span className="option-desc">Partially electrified or highly efficient</span>
-              </div>
-              <div
+              </button>
+              <button
+                type="button"
                 className={`selector-option ${commuteArchetype === 'gas' ? 'selected' : ''}`}
                 onClick={() => setCommuteArchetype('gas')}
+                style={{ color: 'inherit', fontFamily: 'inherit', width: '100%' }}
               >
                 <span className="icon">🚗</span>
                 <span className="option-label">SUV / Sedan</span>
                 <span className="option-desc">Standard internal combustion engine</span>
-              </div>
+              </button>
             </div>
           </div>
 
           <div className="archetype-section">
             <h3>3. Dietary Choices</h3>
             <div className="grid-selector">
-              <div
+              <button
+                type="button"
                 className={`selector-option ${dietArchetype === 'vegan' ? 'selected' : ''}`}
                 onClick={() => setDietArchetype('vegan')}
+                style={{ color: 'inherit', fontFamily: 'inherit', width: '100%' }}
               >
                 <span className="icon">🥗</span>
                 <span className="option-label">Plant-Forward</span>
                 <span className="option-desc">Vegan or low-dairy vegetarian diets</span>
-              </div>
-              <div
+              </button>
+              <button
+                type="button"
                 className={`selector-option ${dietArchetype === 'balanced' ? 'selected' : ''}`}
                 onClick={() => setDietArchetype('balanced')}
+                style={{ color: 'inherit', fontFamily: 'inherit', width: '100%' }}
               >
                 <span className="icon">🍗</span>
                 <span className="option-label">Balanced</span>
                 <span className="option-desc">White meats, grains, low red meat</span>
-              </div>
-              <div
+              </button>
+              <button
+                type="button"
                 className={`selector-option ${dietArchetype === 'meat' ? 'selected' : ''}`}
                 onClick={() => setDietArchetype('meat')}
+                style={{ color: 'inherit', fontFamily: 'inherit', width: '100%' }}
               >
                 <span className="icon">🥩</span>
                 <span className="option-label">Meat Enthusiast</span>
                 <span className="option-desc">Regular beef, pork, dairy heavy</span>
-              </div>
+              </button>
             </div>
           </div>
 

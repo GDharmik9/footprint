@@ -51,8 +51,12 @@ export interface AutoLocation {
 }
 
 export async function detectIPLocation(): Promise<AutoLocation> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 1500);
+
   try {
-    const res = await fetch('https://ipapi.co/json/');
+    const res = await fetch('https://ipapi.co/json/', { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (res.ok) {
       const data = await res.json();
       if (data.postal && data.country_code) {
@@ -64,6 +68,8 @@ export async function detectIPLocation(): Promise<AutoLocation> {
     }
   } catch (e) {
     console.warn('IP Geolocation lookup failed, falling back to default location.', e);
+  } finally {
+    clearTimeout(timeoutId);
   }
   return {
     country: 'us',
