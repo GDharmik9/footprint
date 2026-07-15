@@ -16,19 +16,8 @@ let pubsub: PubSub | null = null;
 const localEventEmitter = new EventEmitter();
 let isUsingGcpPubSub = false;
 
-try {
-  // Check if we are running in an environment with credentials
-  if (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.K_SERVICE) {
-    secretManager = new SecretManagerServiceClient();
-    pubsub = new PubSub({ projectId: PROJECT_ID });
-    isUsingGcpPubSub = true;
-    console.log('GCP Clients initialized successfully.');
-  } else {
-    console.log('No GCP credentials detected. Falling back to local sandbox event bus.');
-  }
-} catch (e) {
-  console.warn('GCP Client initialization failed. Using local event bus fallback:', e);
-}
+// Google Cloud Services integrations are disabled. Using local sandbox event bus and env vars.
+console.log('Google Cloud Services disabled. Falling back to local sandbox event bus.');
 
 /**
  * Retrieves a secret from Google Cloud Secret Manager.
